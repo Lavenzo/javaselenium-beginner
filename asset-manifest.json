@@ -1,13 +1,13 @@
 {
   "files": {
     "main.css": "/javaselenium-beginner/static/css/main.e6c13ad2.css",
-    "main.js": "/javaselenium-beginner/static/js/main.5a66dd9f.js",
+    "main.js": "/javaselenium-beginner/static/js/main.e602dd15.js",
     "index.html": "/javaselenium-beginner/index.html",
     "main.e6c13ad2.css.map": "/javaselenium-beginner/static/css/main.e6c13ad2.css.map",
-    "main.5a66dd9f.js.map": "/javaselenium-beginner/static/js/main.5a66dd9f.js.map"
+    "main.e602dd15.js.map": "/javaselenium-beginner/static/js/main.e602dd15.js.map"
   },
   "entrypoints": [
     "static/css/main.e6c13ad2.css",
-    "static/js/main.5a66dd9f.js"
+    "static/js/main.e602dd15.js"
   ]
 }
