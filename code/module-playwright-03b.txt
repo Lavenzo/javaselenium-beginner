@@ -1,0 +1,372 @@
+import { chromium, Page } from "playwright";
+import fs from "fs";
+import path from "path";
+
+const customerUserIDs = [
+  "Lavenzo0053",
+  "Sanaa0054",
+  "Rafferty0055",
+  "Rebecca0056",
+  "Sebastien0057",
+  "Vivian0058",
+  "Asa0059",
+  "Rueben0060",
+  "Anisa0061",
+  "Pamela0062",
+  "Isobelle0063",
+  "Pearl0064",
+  "Faye0065",
+  "Barbara0066",
+  "Ciaran0067",
+  "Stephen0068",
+  "Gene0069",
+  "Heidi0070",
+  "Yash0071",
+  "Diane0072",
+];
+
+const subjects = [
+  "Maths",
+  "Physics",
+  "Chemistry",
+  "Biology",
+  "Computer Science",
+  "Economics",
+  "English",
+  "History",
+  "Accounting",
+  "Arts",
+];
+
+async function main() {
+  // Launch browser
+  const browser = await chromium.launch({
+    headless: false, // show the browser
+    args: ["--start-maximized"],
+  });
+
+  // Create context (full window size)
+  const context = await browser.newContext({
+    viewport: null,
+  });
+
+  // Open a new page
+  const page = await context.newPage();
+
+  // Navigate to your site
+  await page.goto("http://localhost:3000/javaselenium-beginner", {
+    waitUntil: "domcontentloaded",
+  });
+
+  await page.waitForTimeout(1000);
+
+  // Locate "Module 3" link (opens in NEW TAB)
+  const module3Link = page.locator("//a[contains(text(),'Module 3:')]");
+  await module3Link.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1000);
+
+  // Capture the new tab created by the click (ie: the child page)
+  const [childPage] = await Promise.all([
+    context.waitForEvent("page"),
+    module3Link.click(),
+  ]);
+
+  // Make sure it really navigated and loaded
+  await childPage.waitForLoadState("domcontentloaded");
+
+  // If DemoQA returned 502, retry once (or twice)
+  const bodyText = await childPage
+    .locator("body")
+    .innerText()
+    .catch(() => "");
+  if (bodyText.includes("502 Bad Gateway")) {
+    await childPage.waitForTimeout(1000);
+    await childPage.reload({ waitUntil: "domcontentloaded" });
+  }
+
+  // Click the Element icon
+  const elementsCard = childPage.locator("div.card-body:has-text('Forms')");
+  await childPage.waitForTimeout(1000);
+  await elementsCard.click();
+  await childPage.waitForURL("**/forms");
+
+  // Click the "Text Box" item in the left menu
+  const textBoxLink = childPage.locator(
+    "//div[@class='element-list collapse show']//li[@id='item-0']"
+  );
+  await childPage.waitForTimeout(1000);
+  await textBoxLink.scrollIntoViewIfNeeded();
+  await textBoxLink.click();
+  await childPage.waitForURL("**/automation-practice-form");
+
+  console.log("Entering Form Page. Current URL:", childPage.url());
+  for (let i = 1; i <= 5; i++) {
+    try {
+      await fillPracticeForm(childPage);
+      console.log(
+        i === 1
+          ? `Registered ${i} student record`
+          : `Registered ${i} student records`
+      );
+    } catch (err) {
+      console.error(`❌ Failed at iteration ${i}`, err);
+      break;
+    }
+  }
+  console.log("Returned from Form Page.");
+  await childPage.waitForURL("**/automation-practice-form");
+}
+// only log if something breaks
+main().catch(console.error);
+
+async function fillPracticeForm(page: Page) {
+  // Define locator for submit button, to use for scrolling later and submit the registration
+  const submitBtn = page.locator("#submit");
+
+  // First Name Field
+  await page.waitForTimeout(500);
+  let field1 = page.locator("#firstName");
+  await field1.scrollIntoViewIfNeeded();
+  const firstName = getFirstName();
+  await field1.fill(firstName);
+
+  // Last Name Field
+  await page.waitForTimeout(500);
+  field1 = page.locator("#lastName");
+  field1.fill(getFirstName());
+
+  // Email Field
+  await page.waitForTimeout(500);
+  field1 = page.locator("#userEmail");
+  field1.fill(firstName + "@gmail.com");
+
+  // Gender Field
+  await page.waitForTimeout(500);
+  await fillGender(page);
+
+  // Mobile Number Field
+  await page.waitForTimeout(500);
+  field1 = page.locator("#userNumber");
+  field1.scrollIntoViewIfNeeded();
+  field1.fill(genMobileNum());
+
+  // Date Of Birth Field
+  await page.waitForTimeout(500);
+  const startDate = new Date(1990, 1, 1);
+  const endDate = new Date(2005, 12, 31);
+  const dob = randomDob(startDate, endDate);
+  await setDobByDatePicker(page, dob);
+
+  // Scroll the page
+  await page.waitForTimeout(500);
+  await submitBtn.scrollIntoViewIfNeeded();
+
+  // Subjects Field
+  await page.waitForTimeout(500);
+  const subject = genSubject();
+  const subjectInput = page.locator("#subjectsInput");
+  await subjectInput.click();
+  await subjectInput.type(subject, { delay: 30 });
+  await subjectInput.press("Enter"); // key point: press on the input
+
+  // Hobbies Field
+  await page.waitForTimeout(500);
+  await fillHobbies(page);
+
+  // Take Screenshot and Upload Image
+  await page.waitForTimeout(500);
+  const screenshotPath = await takeScreenshot(
+    page,
+    "D:/Kevin/Resume/Jobs/Cognizant/Client/VISA/Image",
+    "TypeScriptPlaywright_"
+  );
+  await uploadImage(page, screenshotPath);
+
+  // Current Address Field
+  await page.waitForTimeout(500);
+  field1 = page.locator("//textarea[@id='currentAddress']");
+  await field1.fill(firstName + " Current Address");
+
+  // Fill Up State and City
+  await page.waitForTimeout(500);
+  await fillStateAndCity(page);
+
+  // Click the Submit
+  await page.waitForTimeout(500);
+  await submitBtn.click();
+
+  // Click the Close button
+  await page.waitForTimeout(1000);
+  const closeBtn = page.locator("#closeLargeModal");
+  await closeBtn.click();
+}
+
+// Helper class for Name Generation
+function getFirstName(): string {
+  const randIndex = Math.floor(Math.random() * customerUserIDs.length);
+  return customerUserIDs[randIndex];
+}
+
+async function fillGender(page: Page) {
+  const randomNumber: number = Math.floor(Math.random() * 3) + 1;
+  const chkBox1 = page.locator("//label[normalize-space()='Male']");
+  const chkBox2 = page.locator("//label[normalize-space()='Female']");
+  const chkBox3 = page.locator("//label[normalize-space()='Other']");
+
+  switch (randomNumber) {
+    case 1:
+      await chkBox1.click();
+      break;
+    case 2:
+      await chkBox2.click();
+      break;
+    case 3:
+      await chkBox3.click();
+      break;
+    default:
+      throw new Error("Invalid number");
+  }
+}
+
+function genMobileNum(): string {
+  const firstDigit = Math.floor(Math.random() * 9) + 1;
+  let number = firstDigit.toString();
+
+  for (let i = 0; i <= 9; i++) {
+    number += Math.floor(Math.random() * 10).toString();
+  }
+  return number;
+}
+
+function randomDob(start: Date, end: Date): Date {
+  const startTime = start.getTime();
+  const endTime = end.getTime();
+
+  const randomTime = Math.floor(
+    Math.random() * (endTime - startTime + 1) + startTime
+  );
+
+  return new Date(randomTime);
+}
+
+async function setDobByDatePicker(page: Page, dob: Date): Promise<void> {
+  // Open date picker
+  const dobInput = page.locator("#dateOfBirthInput");
+  await dobInput.click();
+
+  // Select year
+  const yearSelect = page.locator(".react-datepicker__year-select");
+  await yearSelect.selectOption(dob.getFullYear().toString());
+
+  // Select month (0-based in JS, same logic as Java)
+  const monthSelect = page.locator(".react-datepicker__month-select");
+  await monthSelect.selectOption({ index: dob.getMonth() });
+
+  // Select day (exclude outside-month days)
+  const day = dob.getDate().toString();
+
+  const dayLocator = page.locator(
+    `.react-datepicker__day:not(.react-datepicker__day--outside-month)`,
+    { hasText: day }
+  );
+
+  await dayLocator.first().click();
+}
+
+function genSubject(): string {
+  const randIndex = Math.floor(Math.random() * subjects.length);
+  return subjects[randIndex];
+}
+
+async function fillHobbies(page: Page) {
+  const randomNumber: number = Math.floor(Math.random() * 3) + 1;
+  const sportChkBox = page.locator("//label[normalize-space()='Sports']");
+  const readingChkBox = page.locator("//label[normalize-space()='Reading']");
+  const musicChkBox = page.locator("//label[normalize-space()='Music']");
+
+  switch (randomNumber) {
+    case 1:
+      await sportChkBox.click();
+      break;
+    case 2:
+      await readingChkBox.click();
+      break;
+    case 3:
+      await musicChkBox.click();
+      break;
+    default:
+      throw new Error("Invalid number");
+  }
+}
+
+async function takeScreenshot(
+  page: Page,
+  baseDir: string,
+  filePrefix = "TypeScriptPlaywright"
+): Promise<string> {
+  // Ensure directory exists
+  if (!fs.existsSync(baseDir)) {
+    fs.mkdirSync(baseDir, { recursive: true });
+  }
+
+  const now = new Date();
+  const dd = String(now.getDate()).padStart(2, "0");
+  const MM = String(now.getMonth() + 1).padStart(2, "0");
+  const yyyy = now.getFullYear();
+  const HH = String(now.getHours()).padStart(2, "0");
+  const mm = String(now.getMinutes()).padStart(2, "0");
+  const ss = String(now.getSeconds()).padStart(2, "0");
+
+  const fileName = `${filePrefix}_${dd}${MM}${yyyy}_${HH}${mm}${ss}.png`;
+  const fullPath = path.join(baseDir, fileName);
+
+  await page.screenshot({
+    path: fullPath,
+    fullPage: true,
+  });
+
+  console.log(`📸 Screenshot saved at: ${fullPath}`);
+  return fullPath;
+}
+
+async function uploadImage(page: Page, screenshotPath: string): Promise<void> {
+  const uploadInput = page.locator("#uploadPicture");
+
+  // Playwright auto-waits for presence + visibility
+  await uploadInput.setInputFiles(screenshotPath);
+
+  console.log("📤 Image uploaded:", screenshotPath);
+}
+
+async function fillStateAndCity(page: Page): Promise<void> {
+  const stateCityMap: Record<string, string[]> = {
+    NCR: ["Delhi", "Gurgaon", "Noida"],
+    "Uttar Pradesh": ["Agra", "Lucknow", "Merrut"],
+    Haryana: ["Karnal", "Panipat"],
+  };
+
+  const states = Object.keys(stateCityMap);
+  const chosenState = states[Math.floor(Math.random() * states.length)];
+  const cities = stateCityMap[chosenState];
+  const chosenCity = cities[Math.floor(Math.random() * cities.length)];
+
+  // ---- STATE ----
+  const stateDropdown = page.locator("#state"); // clickable container
+  const stateInput = page.locator("#react-select-3-input"); // actual input
+
+  await stateDropdown.scrollIntoViewIfNeeded();
+  await stateDropdown.click(); // open dropdown (prevents placeholder intercept issue)
+
+  await stateInput.fill(chosenState);
+  await stateInput.press("Enter");
+
+  // ---- CITY ----
+  const cityDropdown = page.locator("#city");
+  const cityInput = page.locator("#react-select-4-input");
+
+  await cityDropdown.click();
+  await cityInput.fill(chosenCity);
+  await cityInput.press("Enter");
+
+  console.log(`Chosen State: ${chosenState} | Chosen City: ${chosenCity}`);
+}
