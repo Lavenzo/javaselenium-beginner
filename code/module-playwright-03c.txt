@@ -1,0 +1,520 @@
+import { chromium, Page, BrowserContext } from "playwright";
+import { expect } from "playwright/test";
+
+const customerUserIDs = [
+  "Lavenzo0053",
+  "Sanaa0054",
+  "Rafferty0055",
+  "Rebecca0056",
+  "Sebastien0057",
+  "Vivian0058",
+  "Asa0059",
+  "Rueben0060",
+  "Anisa0061",
+  "Pamela0062",
+  "Isobelle0063",
+  "Pearl0064",
+  "Faye0065",
+  "Barbara0066",
+  "Ciaran0067",
+  "Stephen0068",
+  "Gene0069",
+  "Heidi0070",
+  "Yash0071",
+  "Diane0072",
+];
+
+async function main() {
+  // Launch browser
+  const browser = await chromium.launch({
+    headless: false, // show the browser
+    args: ["--start-maximized"],
+  });
+
+  // Create context (full window size)
+  const context = await browser.newContext({
+    viewport: null,
+  });
+
+  // Open a new page
+  const page = await context.newPage();
+
+  // Navigate to your site
+  await page.goto("http://localhost:3000/javaselenium-beginner", {
+    waitUntil: "domcontentloaded",
+  });
+
+  await page.waitForTimeout(1000);
+
+  // Locate "Module 3" link (opens in NEW TAB)
+  const module3Link = page.locator("//a[contains(text(),'Module 3:')]");
+  await module3Link.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(1000);
+
+  // Capture the new tab created by the click (ie: the child page)
+  let [childPage] = await Promise.all([
+    context.waitForEvent("page"),
+    module3Link.click(),
+  ]);
+
+  // Make sure it really navigated and loaded
+  await childPage.waitForLoadState("domcontentloaded");
+
+  // If DemoQA returned 502, retry once (or twice)
+  const bodyText = await childPage
+    .locator("body")
+    .innerText()
+    .catch(() => "");
+  if (bodyText.includes("502 Bad Gateway")) {
+    await childPage.waitForTimeout(1000);
+    await childPage.reload({ waitUntil: "domcontentloaded" });
+  }
+
+  // Click the Element icon
+  const elementsCard = childPage.locator(
+    "//div[3]//div[1]//div[2]//*[name()='svg']"
+  );
+  await childPage.waitForTimeout(1000);
+  await elementsCard.click();
+  await childPage.waitForURL("**/alertsWindows");
+  console.log(
+    "Entering Alerts, Frame & Windows Page. Current URL:",
+    childPage.url()
+  );
+
+  /* 
+  === Browser Windows ===
+  --- New Tab --- 
+   */
+  await browserWindowNewTab(page, childPage);
+  // --- New Window ---
+  await browserWindowNewWindow(page);
+  // --- New Window Msg ---
+  await closeAllExceptParent(page);
+  await browserWindowNewWindowMsg(page);
+  console.log("Returned from Alerts, Frame & Windows Page.");
+  await childPage.waitForURL("**/browser-windows");
+
+  /* 
+  === Alerts ===
+   */
+  // Always start clean --zzz
+  await closeAllExceptParent(page);
+  childPage = await alertManagement(page);
+  // Now childPage is guaranteed alive and correct
+  await alertManagement(childPage);
+  await childPage.waitForURL("**/alerts", { timeout: 10_000 });
+}
+// only log if something breaks
+main().catch(console.error);
+
+async function browserWindowNewTab(parentPage: Page, childPage: Page) {
+  // We are ALREADY at childPage (child window).
+  // All Browser Windows clicks + New Tab clicks must happen in childPage.
+
+  const context: BrowserContext = childPage.context();
+
+  // Ensure child page is ready
+  await childPage.bringToFront();
+  await childPage.waitForLoadState("domcontentloaded");
+
+  // Click Browser Windows (LEFT MENU) on child page
+  const browserWindowLink = childPage.locator(
+    "//span[normalize-space()='Browser Windows']"
+  );
+  await browserWindowLink.click();
+
+  // Confirm we are on browser-windows page (more stable)
+  await childPage.waitForURL("**/browser-windows", { timeout: 10_000 });
+
+  // ---- SIBLING TAB: click "tabButton" from CHILD and capture the new tab ----
+  await childPage.waitForTimeout(1000);
+  const [siblingPage] = await Promise.all([
+    context.waitForEvent("page"),
+    childPage.locator("#tabButton").click(),
+  ]);
+
+  // Wait for sibling tab to load and become /sample
+  await siblingPage.waitForLoadState("domcontentloaded");
+  await siblingPage
+    .waitForURL("**/sample", { timeout: 10_000 })
+    .catch(async () => {
+      await siblingPage.goto("https://demoqa.com/sample", {
+        waitUntil: "domcontentloaded",
+      });
+    });
+
+  // Extract message from sibling tab
+  await childPage.waitForTimeout(2000);
+  const heading = siblingPage.locator("#sampleHeading");
+  await expect(heading).toBeVisible({ timeout: 10_000 });
+
+  const msg = (await heading.innerText()).trim();
+  console.log("Message Extracted from new Tab:", msg);
+
+  // Close sibling tab first
+  await siblingPage.close();
+
+  // ---- Close CHILD window next ----
+  await childPage.waitForTimeout(1000);
+  if (!childPage.isClosed()) {
+    await childPage.close();
+  }
+
+  // Back to PARENT page
+  await parentPage.bringToFront();
+}
+
+async function forceIfVignette(page: Page, targetUrl: string) {
+  const url = page.url() || "";
+  if (url.includes("google_vignette")) {
+    await page.goto(targetUrl, { waitUntil: "domcontentloaded" });
+  }
+}
+
+async function openNewWindowGetHeadingAndClose(browserWindowsPage: Page) {
+  const [popup] = await Promise.all([
+    browserWindowsPage.waitForEvent("popup", { timeout: 10_000 }),
+    browserWindowsPage.locator("#windowButton").click(),
+  ]);
+
+  await browserWindowsPage.waitForTimeout(1000);
+  await popup.waitForLoadState("domcontentloaded");
+  await popup.bringToFront().catch(() => {});
+
+  await forceIfVignette(popup, "https://demoqa.com/sample");
+
+  const heading = popup.locator("#sampleHeading");
+  await expect(heading).toBeVisible({ timeout: 10_000 });
+
+  const text = (await heading.innerText()).trim();
+  console.log("Message Extracted from new Window:", text);
+
+  await popup.close();
+
+  await browserWindowsPage.bringToFront().catch(() => {});
+  await browserWindowsPage.waitForLoadState("domcontentloaded");
+
+  return text;
+}
+
+async function browserWindowNewWindow(parentPage: Page): Promise<Page> {
+  const context = parentPage.context();
+
+  const module3Link = parentPage.locator(
+    "//a[contains(normalize-space(.),'Module 3:')]"
+  );
+  await module3Link.scrollIntoViewIfNeeded();
+  await expect(module3Link).toBeVisible({ timeout: 10_000 });
+
+  const [childPage] = await Promise.all([
+    context.waitForEvent("page"),
+    module3Link.click(),
+  ]);
+
+  await childPage.waitForLoadState("domcontentloaded");
+  await childPage.bringToFront().catch(() => {});
+
+  const alertsCard = childPage.locator(
+    "//div[3]//div[1]//div[2]//*[name()='svg']"
+  );
+  await expect(alertsCard).toBeVisible({ timeout: 10_000 });
+  await alertsCard.click();
+
+  await childPage.waitForURL("**/alertsWindows", { timeout: 10_000 });
+
+  // Ensure left menu group is expanded (don’t toggle blindly)
+  const group = childPage.locator(
+    "//div[contains(@class,'element-group')][.//span[normalize-space()='Alerts, Frame & Windows']]"
+  );
+  const groupHeader = group.locator(".header-wrapper");
+  const browserWindowsLink = childPage.locator(
+    "li#item-0 >> text=Browser Windows"
+  );
+
+  // If Browser Windows is not visible, expand the group once
+  if (!(await browserWindowsLink.isVisible().catch(() => false))) {
+    await expect(groupHeader).toBeVisible({ timeout: 10_000 });
+    await groupHeader.click().catch(() => {});
+    await expect(browserWindowsLink).toBeVisible({ timeout: 10_000 });
+  }
+
+  await browserWindowsLink.scrollIntoViewIfNeeded();
+  await browserWindowsLink.click();
+
+  await childPage.waitForURL("**/browser-windows", { timeout: 10_000 });
+  await childPage.waitForTimeout(1000);
+  await openNewWindowGetHeadingAndClose(childPage);
+  return childPage;
+}
+
+// ----------------------------------- Code ZZZ---------------------
+
+async function closeAllExceptParent(parentPage: Page, keepPage?: Page) {
+  const context = parentPage.context();
+  for (const p of context.pages()) {
+    if (p !== parentPage && !p.isClosed()) {
+      await p.close().catch(() => {});
+    }
+  }
+}
+
+async function extractNewWindowMsg_Playwright(msgPage: Page): Promise<string> {
+  const deadline = Date.now() + 3000; // 3 seconds max
+  let msgText = "";
+
+  while (Date.now() < deadline) {
+    // Attempt 1: body innerText (fast)
+    try {
+      msgText = (await msgPage.locator("body").innerText()).trim();
+      if (msgText) return msgText;
+    } catch {}
+
+    // Attempt 2: JS fallback (like your Selenium JS executor)
+    try {
+      const t = await msgPage.evaluate(() => {
+        try {
+          if (!document || !document.body) return "";
+          const text =
+            (document.body as any).innerText || document.body.textContent || "";
+          return String(text || "").trim();
+        } catch {
+          return "";
+        }
+      });
+
+      if (t && t.trim()) return t.trim();
+    } catch {}
+
+    await msgPage.waitForTimeout(150);
+  }
+
+  return ""; // timed out
+}
+
+async function browserWindowNewWindowMsg(parentPage: Page): Promise<Page> {
+  const context = parentPage.context();
+
+  // Open Module 3 link -> new child tab
+  const module3Link = parentPage.locator(
+    "//a[contains(normalize-space(.),'Module 3:')]"
+  );
+  await module3Link.scrollIntoViewIfNeeded();
+  await expect(module3Link).toBeVisible({ timeout: 10_000 });
+
+  const [childPage] = await Promise.all([
+    context.waitForEvent("page", { timeout: 10_000 }),
+    module3Link.click(),
+  ]);
+
+  await childPage.waitForLoadState("domcontentloaded");
+  await childPage.bringToFront().catch(() => {});
+
+  // Click Alerts card
+  const alertsCard = childPage.locator(
+    "//div[3]//div[1]//div[2]//*[name()='svg']"
+  );
+  await expect(alertsCard).toBeVisible({ timeout: 10_000 });
+  await alertsCard.click();
+
+  await childPage.waitForURL("**/alertsWindows", { timeout: 10_000 });
+
+  // Go left menu -> Browser Windows
+  const browserWindowsLink = childPage.locator(
+    "li#item-0 >> text=Browser Windows"
+  );
+  await browserWindowsLink.scrollIntoViewIfNeeded();
+  await browserWindowsLink.click();
+
+  await childPage.waitForURL("**/browser-windows", { timeout: 10_000 });
+
+  const btn = childPage.locator("#messageWindowButton");
+
+  const [msgPage] = await Promise.all([
+    context.waitForEvent("page", { timeout: 10_000 }),
+    btn.click(),
+  ]);
+
+  await msgPage.waitForTimeout(2000);
+
+  const msgText = await extractNewWindowMsg_Playwright(msgPage);
+
+  if (!msgText) {
+    console.log(
+      "Message window opened but text cannot be extracted (timeout)."
+    );
+  } else {
+    console.log("Message Extracted from Message Window:", msgText);
+  }
+
+  // Close message window and return to childPage
+  await msgPage.close().catch(() => {});
+  await childPage.bringToFront().catch(() => {});
+
+  return childPage;
+}
+
+async function alertManagement(parentPage: Page): Promise<Page> {
+  const context = parentPage.context();
+
+  const module3Link = parentPage.locator(
+    "//a[contains(normalize-space(.),'Module 3:')]"
+  );
+  await module3Link.scrollIntoViewIfNeeded();
+  await expect(module3Link).toBeVisible({ timeout: 10_000 });
+
+  const [childPage] = await Promise.all([
+    context.waitForEvent("page", { timeout: 10_000 }),
+    module3Link.click(),
+  ]);
+  await childPage.waitForLoadState("domcontentloaded");
+  await childPage.bringToFront().catch(() => {});
+
+  const alertsCard = childPage.locator(
+    "//div[3]//div[1]//div[2]//*[name()='svg']"
+  );
+  await expect(alertsCard).toBeVisible({ timeout: 10_000 });
+  await alertsCard.click();
+  await childPage.waitForURL("**/alertsWindows", { timeout: 10_000 });
+
+  // 1) Ensure the "Alerts, Frame & Windows" group is expanded
+  const groupHeader = childPage.locator(
+    "//div[contains(@class,'element-group')][.//span[normalize-space()='Alerts, Frame & Windows']]//div[contains(@class,'header-wrapper')]"
+  );
+
+  const alertsItem = childPage.locator("li#item-1:has-text('Alerts')");
+
+  // If Alerts item not visible, expand the group once
+  if (!(await alertsItem.isVisible().catch(() => false))) {
+    await groupHeader.scrollIntoViewIfNeeded();
+    await groupHeader.click();
+  }
+
+  // 2) Click + wait for navigation together (prevents timing miss)
+  await Promise.all([
+    childPage.waitForURL("**/alerts", { timeout: 10_000 }),
+    alertsItem.click(),
+  ]);
+
+  console.log("Clicking the Alert Button");
+
+  const clickBtn = childPage.locator("#alertButton");
+
+  // 1) Register dialog listener BEFORE clicking (no race)
+  childPage.once("dialog", async (dialog) => {
+    console.log("Click Button to see alert:", dialog.message());
+    await childPage.waitForTimeout(1000);
+    await dialog.accept();
+  });
+
+  // 2) Click (force because ads/overlays sometimes intercept)
+  await clickBtn.scrollIntoViewIfNeeded();
+  await clickBtn.click({ force: true, timeout: 10_000 });
+  await childPage.waitForTimeout(1000);
+
+  await childPage.waitForURL("**/alerts", { timeout: 10_000 });
+
+  // --- On button click, alert will appear after 5 seconds (timerAlertButton) ---
+
+  const clickBtnFiveSec = childPage.locator("#timerAlertButton");
+
+  // Register dialog listener BEFORE clicking (no race)
+  const delayedDialogPromise = childPage.waitForEvent("dialog", {
+    timeout: 10_000,
+  });
+
+  await clickBtnFiveSec.scrollIntoViewIfNeeded();
+  await clickBtnFiveSec.click({ force: true });
+
+  // Wait for the delayed alert to appear (it shows after ~5s)
+  try {
+    const dialog = await delayedDialogPromise;
+
+    const delayedAlertText = dialog.message();
+    console.log("Click Button to see alert after 5 seconds:", delayedAlertText);
+
+    await childPage.waitForTimeout(1000);
+    await dialog.accept();
+  } catch (e) {
+    console.log("5-sec alert did not appear within the timeout period");
+    throw e;
+  }
+
+  // You are still on the same page, but keeping your existing assertion is fine
+  await childPage.waitForURL("**/alerts", { timeout: 10_000 });
+
+  // When click on the confirm message alert box, click on the Cancel button
+  // Create ONCE (same function)
+  const confirmBtn = childPage.locator("#confirmButton");
+  const confirmResult = childPage.locator("#confirmResult");
+
+  // ------------------ CANCEL PATH ------------------
+  childPage.removeAllListeners("dialog");
+
+  childPage.once("dialog", async (dialog) => {
+    console.log("Confirm Alert Message:", dialog.message());
+    await childPage.waitForTimeout(1000);
+    await dialog.dismiss(); // Cancel
+  });
+
+  await confirmBtn.scrollIntoViewIfNeeded();
+  await confirmBtn.click({ force: true, timeout: 10_000 });
+
+  await childPage.waitForTimeout(1000);
+  await expect(confirmResult).toBeVisible({ timeout: 10_000 });
+  console.log(
+    "Click Cancel Button alert message:",
+    (await confirmResult.innerText()).trim()
+  );
+
+  // ------------------ OK PATH ------------------
+  childPage.removeAllListeners("dialog");
+
+  childPage.once("dialog", async (dialog) => {
+    console.log("Confirm Alert Message:", dialog.message());
+    await childPage.waitForTimeout(1000);
+    await dialog.accept(); // OK
+  });
+
+  await confirmBtn.scrollIntoViewIfNeeded();
+  await confirmBtn.click({ force: true, timeout: 10_000 });
+
+  await childPage.waitForTimeout(1000);
+  await expect(confirmResult).toBeVisible({ timeout: 10_000 });
+  console.log(
+    "Click OK Button alert message:",
+    (await confirmResult.innerText()).trim()
+  );
+
+  // optional, keep your check
+  await childPage.waitForURL("**/alerts", { timeout: 10_000 });
+
+  // On button click, prompt box will appear and click OK button
+  await childPage.waitForTimeout(500);
+
+  const promptBtn = childPage.locator("#promtButton");
+  await expect(promptBtn).toBeVisible({ timeout: 10_000 });
+  await promptBtn.scrollIntoViewIfNeeded();
+
+  const randomIndex_prompt = Math.floor(Math.random() * customerUserIDs.length);
+  const selectedUser_prompt = customerUserIDs[randomIndex_prompt];
+
+  // IMPORTANT: do NOT use Promise.all(click + waitForEvent) for prompt.
+  // Handle the dialog immediately, then click.
+  childPage.removeAllListeners("dialog");
+  childPage.once("dialog", async (dialog) => {
+    // prompt supports text
+    await childPage.waitForTimeout(1000);
+    await dialog.accept(selectedUser_prompt);
+  });
+
+  await promptBtn.click({ force: true }); // this should NOT timeout now
+
+  const promptResult = childPage.locator("#promptResult");
+  const promptResultText = (await promptResult.innerText()).trim();
+  console.log("Prompt box alert message:", promptResultText);
+
+  // STOP HERE for visual check
+  await childPage.waitForTimeout(10_000);
+  return childPage;
+}

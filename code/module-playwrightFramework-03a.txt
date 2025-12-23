@@ -1,0 +1,123 @@
+// Test File
+
+import { test, expect } from "@playwright/test";
+import { testMetadata03a } from "./utils/testMetadata03a";
+
+test("TC01 - Check Extracted Text from Parent Frame Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata03a(testInfo);
+  await page.goto("https://demoqa.com/frames", {
+    waitUntil: "domcontentloaded",
+  });
+
+  console.log("URL:", page.url());
+  await expect(page).toHaveURL(/\/frames$/);
+
+  // Optional scroll on parent page
+  await page.waitForTimeout(1000);
+  await page.evaluate(() => {
+    window.scrollBy(0, 300);
+  });
+
+  // Frames page unique check
+  await expect(page.locator("#frame1")).toHaveCount(1, { timeout: 15_000 });
+  await expect(page.locator("#frame2")).toHaveCount(1, { timeout: 15_000 });
+
+  // 🔽 SWITCH INTO FRAME 1
+  const frame1 = page.frameLocator("#frame1");
+
+  // 🔽 LOCATE THE HEADING INSIDE THE IFRAME
+  const sampleHeading = frame1.locator("#sampleHeading");
+
+  // 🔽 EXTRACT TEXT
+  const headingText = await sampleHeading.innerText();
+  console.log("TC01 extracted text from Parent Frame: ", headingText);
+
+  // 🔽 ASSERT TEXT
+  expect(headingText).toBe("This is a sample page");
+
+  // Only for observation
+  await page.waitForTimeout(3000);
+});
+
+test("TC02 - Check Extracted Text from Child Frame Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata03a(testInfo);
+  await page.goto("https://demoqa.com/frames", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page).toHaveURL(/\/frames$/);
+
+  // frame2 contains <h1 id="sampleHeading">This is a sample page</h1>
+  const frame2 = page.frameLocator("#frame2");
+  const heading = frame2.locator("#sampleHeading");
+
+  const text = (await heading.innerText()).trim();
+  console.log("TC02 extracted text from Child Frame: ", text);
+
+  expect(text).toBe("This is a sample page");
+});
+
+test("TC03 - Check Extracted Text from External Frame Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata03a(testInfo);
+  test.setTimeout(10_000); // safer than 5s because page load + ads can be slow
+
+  await page.goto("https://demoqa.com/frames", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page).toHaveURL(/\/frames$/);
+
+  // Match Selenium behaviour - take the first matching external div
+  const externalTextEl = page.locator("#framesWrapper > div").first();
+
+  await expect(externalTextEl).toBeVisible({ timeout: 5000 });
+
+  const externalText = (await externalTextEl.innerText()).trim();
+  console.log("TC03 external extracted text:", externalText);
+
+  // ❌ Intentional fail (external text is NOT the iframe text)
+  expect(externalText).toBe("This is a sample page");
+});
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata03a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "03a" },
+    { type: "Topic", description: "Frames" },
+    { type: "Part", description: "Pt 1" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/frames" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+

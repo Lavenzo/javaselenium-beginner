@@ -1,13 +1,26 @@
 {
   "files": {
     "main.css": "/javaselenium-beginner/static/css/main.e6c13ad2.css",
-    "main.js": "/javaselenium-beginner/static/js/main.48bf842d.js",
+    "main.js": "/javaselenium-beginner/static/js/main.df019ebf.js",
+    "static/media/PlayWrightReport03a_Img04.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img04.15fcaa2a581300dcc181.png",
+    "static/media/ExtentRepModule03a_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img03.1b9b1842abae7efb9ae5.png",
+    "static/media/PlayWrightReport03a_Img03.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img03.8542949b498147fbc4f0.png",
+    "static/media/PlayWrightReport03a_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img05.9f40703e4bd667535416.png",
+    "static/media/ExtentRepModule03a_Img02.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img02.ac9f452f4fcd65502815.png",
+    "static/media/PlayWrightReport03a_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img02.083758b6e9c5a679f67b.png",
+    "static/media/PlayWrightReport03a_Img06.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img06.e30cac90a7c5f30da696.png",
+    "static/media/PlayWrightReport03a_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img01.a57ab385d7a06fe61da0.png",
+    "static/media/ExtentRepModule03a_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img06.731d08e792d7cd626041.png",
+    "static/media/ExtentRepModule03a_Img01.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img01.c8c4e5cb8722f41e8f84.png",
+    "static/media/ExtentRepModule03a_Img04.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img04.cd3fa72a1c03f237a485.png",
+    "static/media/ExtentRepModule03a_Img07.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img07.1def94e95c245209df3a.png",
+    "static/media/ExtentRepModule03a_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img05.31c31e164c14d309df4a.png",
     "index.html": "/javaselenium-beginner/index.html",
     "main.e6c13ad2.css.map": "/javaselenium-beginner/static/css/main.e6c13ad2.css.map",
-    "main.48bf842d.js.map": "/javaselenium-beginner/static/js/main.48bf842d.js.map"
+    "main.df019ebf.js.map": "/javaselenium-beginner/static/js/main.df019ebf.js.map"
   },
   "entrypoints": [
     "static/css/main.e6c13ad2.css",
-    "static/js/main.48bf842d.js"
+    "static/js/main.df019ebf.js"
   ]
 }
