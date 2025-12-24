@@ -1,0 +1,157 @@
+// Test File
+
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata03b } from "./utils/testMetadata03a";
+
+test.describe("TC01 - Prerequisite Website Navigation", () => {
+  test("verifyPrereqIsWorking", async ({ page }, testInfo) => {
+    testMetadata03b(testInfo);
+
+    await page.goto("https://demoqa.com/nestedframes", {
+      waitUntil: "domcontentloaded",
+    });
+
+    // 1️⃣ Page exists
+    expect(page).toBeTruthy();
+
+    // 2️⃣ Correct page loaded (auto-waits)
+    await expect(page).toHaveURL(/\/nestedframes/);
+
+    // 3️⃣ Critical element exists
+    const mainContent = page.locator("#framesWrapper");
+    await expect(mainContent).toBeVisible();
+  });
+});
+
+async function getParentFrameText(page: Page): Promise<string> {
+  const parentFrame = page.frameLocator("#frame1");
+  const body = parentFrame.locator("body");
+
+  await expect(body).toBeVisible();
+
+  const bodyText = (await body.innerText()).trim();
+  return bodyText;
+}
+
+test("TC02 - Check Extracted Text from Parent Nested Frame Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata03b(testInfo);
+  await page.goto("https://demoqa.com/nestedframes", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const parentText = await getParentFrameText(page);
+  expect(parentText).toContain("Parent frame");
+});
+
+async function getExternalFrameText(page: Page): Promise<string> {
+  // Ensure we are on the correct page
+  if (!page.url().includes("/nestedframes")) {
+    await page.goto("https://demoqa.com/nestedframes", {
+      waitUntil: "domcontentloaded",
+    });
+  }
+
+  // Wait until wrapper is present (means correct page loaded)
+  const wrapper = page.locator("#framesWrapper");
+  await expect(wrapper).toBeVisible();
+
+  // The external description is the FIRST div inside #framesWrapper
+  // Equivalent to CSS: #framesWrapper > div (first match)
+  const externalTextDiv = page.locator("#framesWrapper > div").first();
+  await expect(externalTextDiv).toBeVisible();
+
+  return (await externalTextDiv.innerText()).trim();
+}
+
+test("TC03 - Check Extracted Text from External Nested Frame Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata03b(testInfo);
+  const externalText = await getExternalFrameText(page);
+  expect(externalText).toBe("External frame");
+});
+
+async function getChildFrameText(page: Page): Promise<string> {
+  // Ensure correct page (same idea as Selenium)
+  if (!page.url().includes("/nestedframes")) {
+    await page.goto("https://demoqa.com/nestedframes", {
+      waitUntil: "domcontentloaded",
+    });
+  }
+
+  // 1️⃣ Switch into parent iframe (frame1)
+  const parentFrame = page.frameLocator("#frame1");
+
+  // 2️⃣ Switch into child iframe inside frame1 (first iframe under parent frame)
+  const childFrame = parentFrame.frameLocator("iframe");
+
+  // 3️⃣ Read the text inside child iframe
+  const childTextP = childFrame.locator("p");
+  await expect(childTextP).toBeVisible();
+
+  return (await childTextP.innerText()).trim();
+}
+
+test("TC04 - Check Extracted Text from Child Nested Frame Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata03b(testInfo);
+  const childText = await getChildFrameText(page);
+  expect(childText).toBe("Child Iframe");
+});
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata03a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "03a" },
+    { type: "Topic", description: "Frames" },
+    { type: "Part", description: "Pt 1" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/frames" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata03b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "03b" },
+    { type: "Topic", description: "Nested Frames" },
+    { type: "Part", description: "Pt 2" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/nestedframes" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
