@@ -1,0 +1,192 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata03c } from "./utils/testMetadata03a";
+
+test.describe("TC01 - Prerequisite Website Navigation", () => {
+  test("verifyPrereqIsWorking", async ({ page }, testInfo) => {
+    testMetadata03c(testInfo);
+
+    await page.goto("https://demoqa.com/modal-dialogs", {
+      waitUntil: "domcontentloaded",
+    });
+
+    // 1️⃣ Page exists
+    expect(page).toBeTruthy();
+
+    // 2️⃣ Correct page loaded (auto-waits)
+    await expect(page).toHaveURL(/\/modal-dialogs/);
+
+    // 3️⃣ Critical element exists
+    const mainContent = page.locator("#modalWrapper h1", {
+      hasText: "Modal Dialogs",
+    });
+    await expect(mainContent).toBeVisible();
+  });
+});
+
+async function getExternalModalText(page: Page): Promise<string> {
+  // 1️⃣ Ensure we are in main DOM
+  // (Playwright is already in main DOM unless frameLocator is used)
+
+  // 2️⃣ Locate text inside Modal Dialogs section
+  const modalText = page.locator(
+    "xpath=//div[@id='modalWrapper']//div[normalize-space()='Click on button to see modal']"
+  );
+
+  // 3️⃣ Wait until visible
+  await expect(modalText).toBeVisible();
+
+  // 4️⃣ Return trimmed text
+  return (await modalText.textContent())!.trim();
+}
+
+test("TC02 - Verify External Modal Text", async ({ page }, testInfo) => {
+  testMetadata03c(testInfo);
+  await page.goto("https://demoqa.com/modal-dialogs", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const externalText = await getExternalModalText(page);
+
+  expect(externalText).toBe("Click on button to see modal");
+});
+
+async function getSmallModalText(page: Page): Promise<string> {
+  // 1️⃣ Ensure we are on main DOM
+  // (Playwright is already on main DOM unless you use frameLocator)
+
+  // 2️⃣ Click Small Modal button
+  await page.locator("#showSmallModal").click();
+
+  // 3️⃣ Wait for modal body text to appear and capture it
+  const modalBodyText = page.locator("div.modal-body");
+  await expect(modalBodyText).toBeVisible();
+
+  const text = (await modalBodyText.textContent())!.trim();
+
+  // 4️⃣ Hard wait 500ms before closing (as requested)
+  await page.waitForTimeout(500);
+
+  // 5️⃣ Click Close button
+  await page.locator("#closeSmallModal").click();
+
+  // 6️⃣ Ensure modal is closed
+  await expect(page.locator("div.modal-dialog")).toBeHidden();
+
+  return text;
+}
+
+test("TC03 - Verify Small Modal Text", async ({ page }, testInfo) => {
+  testMetadata03c(testInfo);
+  await page.goto("https://demoqa.com/modal-dialogs", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const childText = await getSmallModalText(page);
+
+  expect(childText).toBe("This is a small modal. It has very less content");
+});
+
+async function getParentModalText(page: Page): Promise<string> {
+  // 1️⃣ Ensure we are on main DOM
+  // (Playwright defaults to main DOM unless frameLocator is used)
+
+  // 2️⃣ Click Large Modal button
+  await page.locator("#showLargeModal").click();
+
+  // 3️⃣ Wait for modal text to appear and capture it
+  const modalBodyText = page.locator("div.modal-body");
+  await expect(modalBodyText).toBeVisible();
+
+  const text = (await modalBodyText.textContent())!.trim();
+
+  // 4️⃣ Hard wait 500ms before closing (as requested)
+  await page.waitForTimeout(500);
+
+  // 5️⃣ Click Close button
+  await page.locator("#closeLargeModal").click();
+
+  // 6️⃣ Ensure modal is closed
+  await expect(page.locator("div.modal-dialog")).toBeHidden();
+
+  return text;
+}
+
+test("TC03 - Verify Large Modal Text", async ({ page }, testInfo) => {
+  testMetadata03c(testInfo);
+  await page.goto("https://demoqa.com/modal-dialogs", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const largeText = await getParentModalText(page);
+
+  expect(largeText).toBe("This is a large modal. It has more content");
+});
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata03a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "03a" },
+    { type: "Topic", description: "Frames" },
+    { type: "Part", description: "Pt 1" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/frames" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata03b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "03b" },
+    { type: "Topic", description: "Nested Frames" },
+    { type: "Part", description: "Pt 2" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/nestedframes" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata03c(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "03c" },
+    { type: "Topic", description: "Modal Dialogs" },
+    { type: "Part", description: "Pt 3" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/modal-dialogs" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+

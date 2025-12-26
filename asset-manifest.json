@@ -1,38 +1,50 @@
 {
   "files": {
     "main.css": "/javaselenium-beginner/static/css/main.e6c13ad2.css",
-    "main.js": "/javaselenium-beginner/static/js/main.75135929.js",
+    "main.js": "/javaselenium-beginner/static/js/main.99a64d93.js",
     "static/media/PlayWrightReport03a_Img04.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img04.15fcaa2a581300dcc181.png",
     "static/media/PlayWrightReport03b_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport03b_Img05.07c0f68f3fba91486750.png",
+    "static/media/ExtentRepModule03c_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule03c_Img03.f8a7b282981605527255.png",
     "static/media/ExtentRepModule03a_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img03.1b9b1842abae7efb9ae5.png",
+    "static/media/PlayWrightReport03c_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport03c_Img05.8bca30ad00d33989b70f.png",
     "static/media/ExtentRepModule03b_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule03b_Img03.3cc582d21fb0a2827680.png",
     "static/media/PlayWrightReport03a_Img03.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img03.8542949b498147fbc4f0.png",
     "static/media/PlayWrightReport03b_Img04.png": "/javaselenium-beginner/static/media/PlayWrightReport03b_Img04.1217ebeb7b9ffc3c8458.png",
+    "static/media/PlayWrightReport03c_Img04.png": "/javaselenium-beginner/static/media/PlayWrightReport03c_Img04.8e76e1929e9ab85811cd.png",
+    "static/media/PlayWrightReport03c_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport03c_Img01.399eaf094a44a3928024.png",
+    "static/media/ExtentRepModule03c_Img02.png": "/javaselenium-beginner/static/media/ExtentRepModule03c_Img02.7cd4396a9688c98abec8.png",
+    "static/media/PlayWrightReport03c_Img06.png": "/javaselenium-beginner/static/media/PlayWrightReport03c_Img06.15cba9892aa7a3c23612.png",
     "static/media/ExtentRepModule03b_Img02.png": "/javaselenium-beginner/static/media/ExtentRepModule03b_Img02.49af15897c794a94b8e1.png",
     "static/media/PlayWrightReport03b_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport03b_Img01.4cb2727a1147a2634f6c.png",
     "static/media/PlayWrightReport03b_Img03.png": "/javaselenium-beginner/static/media/PlayWrightReport03b_Img03.4646d31655d4b3c97aee.png",
     "static/media/PlayWrightReport03a_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img05.9f40703e4bd667535416.png",
     "static/media/ExtentRepModule03a_Img02.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img02.ac9f452f4fcd65502815.png",
     "static/media/PlayWrightReport03a_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img02.083758b6e9c5a679f67b.png",
+    "static/media/ExtentRepModule03c_Img01.png": "/javaselenium-beginner/static/media/ExtentRepModule03c_Img01.02833a9f62f3524534b2.png",
+    "static/media/PlayWrightReport03c_Img03.png": "/javaselenium-beginner/static/media/PlayWrightReport03c_Img03.ccdbdc8012cc86e20e79.png",
     "static/media/PlayWrightReport03b_Img06.png": "/javaselenium-beginner/static/media/PlayWrightReport03b_Img06.46474877054465f61860.png",
+    "static/media/PlayWrightReport03c_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport03c_Img02.0283ca66af9f458f2232.png",
     "static/media/PlayWrightReport03b_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport03b_Img02.517ac86d45f0a51a0392.png",
     "static/media/PlayWrightReport03a_Img06.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img06.e30cac90a7c5f30da696.png",
     "static/media/ExtentRepModule03b_Img01.png": "/javaselenium-beginner/static/media/ExtentRepModule03b_Img01.db518eca18e367007283.png",
     "static/media/PlayWrightReport03a_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img01.a57ab385d7a06fe61da0.png",
+    "static/media/ExtentRepModule03c_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule03c_Img05.b7e3e6c2528bd0449202.png",
     "static/media/ExtentRepModule03b_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule03b_Img05.79f5f81c6faad728e4dd.png",
     "static/media/ExtentRepModule03a_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img06.731d08e792d7cd626041.png",
     "static/media/ExtentRepModule03a_Img01.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img01.c8c4e5cb8722f41e8f84.png",
     "static/media/ExtentRepModule03a_Img04.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img04.cd3fa72a1c03f237a485.png",
+    "static/media/ExtentRepModule03c_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule03c_Img06.f634aec82b8561c644d5.png",
     "static/media/ExtentRepModule03b_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule03b_Img06.bef28d262b90f24fa5fe.png",
     "static/media/ExtentRepModule03a_Img07.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img07.1def94e95c245209df3a.png",
+    "static/media/ExtentRepModule03c_Img04.png": "/javaselenium-beginner/static/media/ExtentRepModule03c_Img04.d57bb95feed5d7eb29cc.png",
     "static/media/ExtentRepModule03b_Img04.png": "/javaselenium-beginner/static/media/ExtentRepModule03b_Img04.fea4c78fdd2909640da3.png",
     "static/media/ExtentRepModule03a_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img05.31c31e164c14d309df4a.png",
     "index.html": "/javaselenium-beginner/index.html",
     "main.e6c13ad2.css.map": "/javaselenium-beginner/static/css/main.e6c13ad2.css.map",
-    "main.75135929.js.map": "/javaselenium-beginner/static/js/main.75135929.js.map"
+    "main.99a64d93.js.map": "/javaselenium-beginner/static/js/main.99a64d93.js.map"
   },
   "entrypoints": [
     "static/css/main.e6c13ad2.css",
-    "static/js/main.75135929.js"
+    "static/js/main.99a64d93.js"
   ]
 }
