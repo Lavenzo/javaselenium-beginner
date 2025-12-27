@@ -1,0 +1,241 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata04a } from "./utils/testMetadata04";
+
+test.describe("TC01 - Prerequisite Website Navigation", () => {
+  test("verifyPrereqIsWorking", async ({ page }, testInfo) => {
+    testMetadata04a(testInfo);
+
+    await page.goto("https://demoqa.com/accordian", {
+      waitUntil: "domcontentloaded",
+    });
+
+    // 1️⃣ Page exists
+    expect(page).toBeTruthy();
+
+    // 2️⃣ Correct page loaded (auto-waits)
+    await expect(page).toHaveURL(/\/accordian/);
+
+    // 3️⃣ Critical element exists (more stable)
+    const heading = page.locator("h1.text-center");
+    await expect(heading).toHaveText("Accordian");
+  });
+});
+
+async function getFirstAccordian(
+  page: import("@playwright/test").Page
+): Promise<string> {
+  const firstAccordion = page.locator("#section1Heading");
+
+  await firstAccordion.scrollIntoViewIfNeeded();
+
+  try {
+    await firstAccordion.click();
+  } catch {
+    await firstAccordion.click({ force: true });
+  }
+
+  const accordionText = page.locator("#section1Content p");
+  await expect(accordionText).toBeVisible();
+
+  return (await accordionText.textContent())?.trim() ?? "";
+}
+
+test.describe("TC02 - Verify First Accordion", () => {
+  test("verifyFirstAccordian", async ({ page }, testInfo) => {
+    testMetadata04a(testInfo);
+
+    await page.goto("https://demoqa.com/accordian", {
+      waitUntil: "domcontentloaded",
+    });
+
+    const actualText = await getFirstAccordian(page);
+
+    const expectedText =
+      "Lorem Ipsum is simply dummy text of the printing and typesetting industry. " +
+      "Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a " +
+      "galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also " +
+      "the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of " +
+      "Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker " +
+      "including versions of Lorem Ipsum.";
+
+    await expect(actualText, { message: "First Accordian text mismatch" }).toBe(
+      expectedText
+    );
+  });
+});
+
+// --- Helper: normalize (same idea as your Selenium normalizeText) ---
+function normalizeText(s: string): string {
+  return s
+    .replace(/\u00A0/g, " ") // NBSP -> normal space
+    .replace(/\s+/g, " ") // collapse whitespace/newlines
+    .trim();
+}
+
+// --- Helper: getSecondAccordian (actions + return text, no assertion inside) ---
+async function getSecondAccordian(
+  page: import("@playwright/test").Page
+): Promise<string> {
+  // 1) Click second accordion header
+  const secondAccordian = page.locator("#section2Heading");
+
+  await secondAccordian.scrollIntoViewIfNeeded();
+
+  try {
+    await secondAccordian.click();
+  } catch {
+    await secondAccordian.click({ force: true });
+  }
+
+  // 2) Get ALL paragraph texts inside second accordion
+  const paragraphs = page.locator("#section2Content p");
+  await expect(paragraphs.first()).toBeVisible();
+
+  const texts = await paragraphs.allTextContents();
+
+  // 3) Combine into a single string (same as StringBuilder append + space)
+  return texts
+    .map((t) => t.trim())
+    .join(" ")
+    .trim();
+}
+
+// --- Test: verifySecondAccordian ---
+test.describe("TC03 - Verify Second Accordion", () => {
+  test("verifySecondAccordian", async ({ page }, testInfo) => {
+    testMetadata04a(testInfo);
+
+    await page.goto("https://demoqa.com/accordian", {
+      waitUntil: "domcontentloaded",
+    });
+
+    const actual = await getSecondAccordian(page);
+
+    const expected =
+      "Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in " +
+      "a piece of classical Latin literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor " +
+      "at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum " +
+      "passage, and going through the cites of the word in classical literature, discovered the undoubtable source. Lorem Ipsum " +
+      'comes from sections 1.10.32 and 1.10.33 of "de Finibus Bonorum et Malorum" (The Extremes of Good and Evil) by Cicero, ' +
+      "written in 45 BC. This book is a treatise on the theory of ethics, very popular during the Renaissance. " +
+      'The first line of Lorem Ipsum, "Lorem ipsum dolor sit amet..", comes from a line in section 1.10.32. The standard chunk ' +
+      'of Lorem Ipsum used since the 1500s is reproduced below for those interested. Sections 1.10.32 and 1.10.33 from "de ' +
+      'Finibus Bonorum et Malorum" by Cicero are also reproduced in their exact original form, accompanied by English ' +
+      "versions from the 1914 translation by H. Rackham.";
+
+    await expect(normalizeText(actual), {
+      message: "Second Accordian text mismatch",
+    }).toBe(normalizeText(expected));
+  });
+});
+
+async function getThirdAccordian(
+  page: import("@playwright/test").Page
+): Promise<string> {
+  // 1️⃣ Click third accordion header
+  const thirdAccordian = page.locator("#section3Heading");
+
+  await thirdAccordian.scrollIntoViewIfNeeded();
+
+  try {
+    await thirdAccordian.click();
+  } catch {
+    await thirdAccordian.click({ force: true });
+  }
+
+  // 2️⃣ Wait for accordion content text (partial text match like Selenium contains())
+  const accordionText = page.locator("#section3Content p", {
+    hasText: "It is a long established fact that a reader will",
+  });
+
+  await expect(accordionText).toBeVisible();
+
+  // 3️⃣ Return text
+  return (await accordionText.textContent())?.trim() ?? "";
+}
+
+test.describe("TC04 - Verify Third Accordion", () => {
+  test("verifyThirdAccordian", async ({ page }, testInfo) => {
+    testMetadata04a(testInfo);
+
+    await page.goto("https://demoqa.com/accordian", {
+      waitUntil: "domcontentloaded",
+    });
+
+    const thirdAccordianText = await getThirdAccordian(page);
+
+    await expect(thirdAccordianText, {
+      message: "Third Accordian text mismatch",
+    }).toBe(
+      "We use Java Selenium to automate repeatable test cases, ensuring consistent validation " +
+        "of application behavior while reducing manual testing effort."
+    );
+  });
+});
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04a" },
+    { type: "Topic", description: "Accordian" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/accordian" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\" --debug",
+    "test:04a": "playwright test tests/ModulePlaywrightFramework04a.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
