@@ -1,0 +1,230 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata04b } from "./utils/testMetadata04";
+
+test.describe("TC01 - Prerequisite Website Navigation", () => {
+  test("verifyPrereqIsWorking", async ({ page }, testInfo) => {
+    testMetadata04b(testInfo);
+
+    await page.goto("https://demoqa.com/auto-complete", {
+      waitUntil: "domcontentloaded",
+    });
+
+    // 1️⃣ Page exists
+    expect(page).toBeTruthy();
+
+    // 2️⃣ Correct page loaded (auto-waits)
+    await expect(page).toHaveURL(/\/auto-complete/);
+
+    // 3️⃣ Critical element exists (more stable)
+    const heading = page.locator("h1.text-center");
+    await expect(heading).toHaveText("Auto Complete");
+  });
+});
+
+async function get2MultiColour(page: Page): Promise<string> {
+  // 1. Locate the multi auto-complete input
+  const input = page.locator("#autoCompleteMultipleInput");
+
+  // 2. Scroll into view (similar to JavascriptExecutor)
+  await input.scrollIntoViewIfNeeded();
+
+  // 3. Click + enter two colours
+  await input.click();
+  await input.fill("Yellow");
+  await input.press("Enter");
+
+  await input.fill("Blue");
+  await input.press("Enter");
+
+  // 4. Wait until both chips are visible
+  const chips = page.locator("div.auto-complete__multi-value__label");
+  await expect(chips).toHaveCount(2);
+
+  // 5. Collect selected chip labels
+  const selected = await chips.allTextContents();
+
+  // 6. Return as a single string (same behavior as Java)
+  return selected.map((text) => text.trim()).join(", ");
+}
+
+test("TC02 - Verify Multi Colour Names with 2 colours selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04b(testInfo);
+  await page.goto("https://demoqa.com/auto-complete");
+
+  const selectedText = await get2MultiColour(page);
+
+  expect(selectedText).toContain("Yellow");
+  expect(selectedText).toContain("Blue");
+});
+
+async function get3MultiColour(page: Page): Promise<string> {
+  const input = page.locator("#autoCompleteMultipleInput");
+
+  await input.scrollIntoViewIfNeeded();
+  await input.click();
+
+  // Yellow
+  await input.type("Yellow", { delay: 50 });
+  await input.press("ArrowDown");
+  await input.press("Enter");
+
+  // Blue
+  await input.type("Blue", { delay: 50 });
+  await input.press("ArrowDown");
+  await input.press("Enter");
+
+  // Voilet (DemoQA spelling)
+  await input.type("Voilet", { delay: 50 });
+  await input.press("ArrowDown");
+  await input.press("Enter");
+
+  // Wait until all chips are rendered
+  const chips = page.locator("div.auto-complete__multi-value__label");
+  await expect(chips).toHaveCount(3);
+
+  const selected = await chips.allTextContents();
+  return selected.map((t) => t.trim()).join(", ");
+}
+
+test("TC03 - Verify Multi Colour Names with 3 colours selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04b(testInfo);
+  await page.goto("https://demoqa.com/auto-complete");
+
+  const selectedText = await get3MultiColour(page);
+
+  expect(selectedText).toContain("Yellow");
+  expect(selectedText).toContain("Blue");
+  expect(selectedText).toContain("Orange"); // intentionally wrong
+});
+
+async function getSingleColour(page: Page): Promise<string> {
+  // Navigate only if not already on the page
+  if (!page.url().includes("/auto-complete")) {
+    await page.goto("https://demoqa.com/auto-complete");
+  }
+
+  // Single input box
+  const input = page.locator("#autoCompleteSingleInput");
+
+  // Scroll + click (Playwright-safe)
+  await input.scrollIntoViewIfNeeded();
+  await input.click();
+
+  // Clear existing value (Ctrl + A → Backspace)
+  await input.press("Control+A");
+  await input.press("Backspace");
+
+  // Type colour
+  await input.type("Indigo", { delay: 50 });
+
+  // Wait for dropdown option and click
+  const indigoOption = page.locator("div.auto-complete__option", {
+    hasText: "Indigo",
+  });
+
+  await expect(indigoOption).toBeVisible();
+  await indigoOption.click();
+
+  // Read rendered selected value (React single value)
+  const singleValue = page.locator("div.auto-complete__single-value");
+  await expect(singleValue).toBeVisible();
+
+  return (await singleValue.textContent())!.trim();
+}
+
+test("TC04 - Verify Single Colour Name with 1 colour selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04b(testInfo);
+
+  const selectedText = await getSingleColour(page);
+
+  console.log("Successfully managed to get Single Colour:", selectedText);
+  expect(selectedText).toBe("Indigo");
+});
+
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\" --debug",
+    "test:04a": "playwright test tests/ModulePlaywrightFramework04a.spec.ts",
+    "test:04b": "playwright test tests/ModulePlaywrightFramework04b.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04a" },
+    { type: "Topic", description: "Accordian" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/accordian" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04b" },
+    { type: "Topic", description: "Auto Complete" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/auto-complete" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
