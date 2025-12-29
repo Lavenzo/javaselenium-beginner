@@ -1,0 +1,459 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata04b, testMetadata04c } from "./utils/testMetadata04";
+
+test("TC01 - Prerequisite Website Navigation to Date Picker Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata04c(testInfo);
+
+  await page.goto("https://demoqa.com/date-picker", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/date-picker/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Date Picker");
+});
+
+async function getDateSelection(page: Page): Promise<Date | null> {
+  try {
+    // Target date: 12/25/2025 (MM/dd/yyyy)
+    const expectedValue = "12/25/2025";
+
+    // 1) Click input to open calendar
+    const datePickerInput = page.locator("#datePickerMonthYearInput");
+    await datePickerInput.click();
+
+    // 2) Wait for calendar
+    await expect(page.locator(".react-datepicker")).toBeVisible();
+
+    // 3) Select Year = 2025
+    const yearSelect = page.locator(".react-datepicker__year-select");
+    await yearSelect.selectOption({ label: "2025" });
+
+    // 4) Select Month = December
+    const monthSelect = page.locator(".react-datepicker__month-select");
+    await monthSelect.selectOption({ label: "December" });
+
+    // 5) Click day 25 (exclude outside-month days)
+    const day25 = page.locator(
+      ".react-datepicker__day--025:not(.react-datepicker__day--outside-month)"
+    );
+    await day25.click();
+
+    // 6) Wait for input value to update
+    await expect(datePickerInput).toHaveValue(expectedValue);
+
+    // 7) Return Date object
+    const selectedValue = await datePickerInput.inputValue();
+
+    // Convert MM/dd/yyyy → Date
+    const [month, day, year] = selectedValue.split("/").map(Number);
+    return new Date(year, month - 1, day);
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+test("TC02 - Verify Date Selection", async ({ page }, testInfo) => {
+  testMetadata04c(testInfo);
+  await page.goto("https://demoqa.com/date-picker");
+
+  const selectedDate = await getDateSelection(page);
+  expect(selectedDate).not.toBeNull();
+
+  const uiValue = await page.locator("#datePickerMonthYearInput").inputValue();
+
+  expect(uiValue).toBe("12/25/2025");
+
+  // Format returned Date back to MM/dd/yyyy
+  const returnedValue = selectedDate!.toLocaleDateString("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  });
+
+  expect(returnedValue).toBe(uiValue);
+});
+
+export async function getConfirmDateAndTime(
+  page: Page
+): Promise<[Date, Date] | null> {
+  try {
+    // ---------------------------
+    // Part A: Select Date = 12/25/2025
+    // ---------------------------
+    const expectedSelectDateValue = "12/25/2025";
+
+    const selectDateInput = page.locator("#datePickerMonthYearInput");
+    await selectDateInput.click();
+
+    await expect(page.locator(".react-datepicker")).toBeVisible();
+
+    // Set Year = 2025
+    await page
+      .locator(".react-datepicker__year-select")
+      .selectOption({ label: "2025" });
+
+    // Set Month = December
+    await page
+      .locator(".react-datepicker__month-select")
+      .selectOption({ label: "December" });
+
+    // Click day 25 (avoid outside-month cells)
+    await page
+      .locator(
+        ".react-datepicker__day--025:not(.react-datepicker__day--outside-month)"
+      )
+      .click();
+
+    // Wait until input shows expected value
+    await expect(selectDateInput).toHaveValue(expectedSelectDateValue);
+
+    // Parse selected date MM/dd/yyyy -> Date
+    const selectedDateStr = await selectDateInput.inputValue(); // "12/25/2025"
+    const [selMonth, selDay, selYear] = selectedDateStr.split("/").map(Number);
+    const selectedDate = new Date(selYear, selMonth - 1, selDay);
+
+    // ---------------------------
+    // Part B: Extract Date from Date And Time Picker (NO ADJUSTMENT)
+    // ---------------------------
+    const dateTimeInput = page.locator("#dateAndTimePickerInput");
+    await expect(dateTimeInput).toBeVisible();
+
+    const confirmDateTimeStr = await dateTimeInput.inputValue();
+    // Example: "December 28, 2025 9:13 PM"
+    const confirmDateTime = parseDemoQaDateTime(confirmDateTimeStr);
+
+    return [selectedDate, confirmDateTime];
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+function parseDemoQaDateTime(value: string): Date {
+  // Split into "December 28, 2025" and "9:13 PM"
+  const parts = value.trim().split(" ");
+  // parts: ["December","28,","2025","9:13","PM"]
+  const monthName = parts[0];
+  const day = Number(parts[1].replace(",", ""));
+  const year = Number(parts[2]);
+
+  const timePart = parts[3]; // "9:13"
+  const ampm = parts[4]; // "PM"
+
+  const [hhStr, mmStr] = timePart.split(":");
+  let hour = Number(hhStr);
+  const minute = Number(mmStr);
+
+  if (ampm === "PM" && hour !== 12) hour += 12;
+  if (ampm === "AM" && hour === 12) hour = 0;
+
+  const monthIndex = monthNameToIndex(monthName);
+  return new Date(year, monthIndex, day, hour, minute, 0, 0);
+}
+
+function monthNameToIndex(monthName: string): number {
+  const map: Record<string, number> = {
+    January: 0,
+    February: 1,
+    March: 2,
+    April: 3,
+    May: 4,
+    June: 5,
+    July: 6,
+    August: 7,
+    September: 8,
+    October: 9,
+    November: 10,
+    December: 11,
+  };
+  const idx = map[monthName];
+  if (idx === undefined) throw new Error(`Unknown month name: ${monthName}`);
+  return idx;
+}
+
+test("TC03 - Verify Unadjusted Confirmed Date Selection", async ({
+  page,
+}, testInfo) => {
+  testMetadata04c(testInfo);
+  await page.goto("https://demoqa.com/date-picker", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const results = await getConfirmDateAndTime(page);
+  expect(results).not.toBeNull();
+
+  const [selectedDate, confirmDateTime] = results!;
+
+  const selectedDateStr = formatMMDDYYYY(selectedDate);
+  const confirmDateStr = formatMMDDYYYY(confirmDateTime);
+
+  expect(
+    selectedDateStr === confirmDateStr,
+    `Selected date and confirmed date should match. Selected: ${selectedDateStr}, Confirmed: ${confirmDateStr}`
+  ).toBeTruthy();
+});
+
+function formatMMDDYYYY(d: Date): string {
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const dd = String(d.getDate()).padStart(2, "0");
+  const yyyy = String(d.getFullYear());
+  return `${mm}/${dd}/${yyyy}`;
+}
+
+async function getAdjustedConfirmDateAndTime(
+  page: Page
+): Promise<[Date, Date] | null> {
+  try {
+    // 1) Select Date -> 12/25/2025
+    const expectedSelectDateValue = "12/25/2025";
+
+    const selectDateInput = page.locator("#datePickerMonthYearInput");
+    await selectDateInput.click();
+
+    await expect(page.locator(".react-datepicker")).toBeVisible();
+
+    await page
+      .locator(".react-datepicker__year-select")
+      .selectOption({ label: "2025" });
+    await page
+      .locator(".react-datepicker__month-select")
+      .selectOption({ label: "December" });
+
+    await page
+      .locator(
+        ".react-datepicker__day--025:not(.react-datepicker__day--outside-month)"
+      )
+      .click();
+
+    await expect(selectDateInput).toHaveValue(expectedSelectDateValue);
+
+    const selectedDateStr = await selectDateInput.inputValue(); // "12/25/2025"
+    const selectedDate = parseMMDDYYYY(selectedDateStr);
+
+    // 2) Adjust Date And Time to SAME date (Dec 25 2025)
+    const dateTimeInput = page.locator("#dateAndTimePickerInput");
+    await dateTimeInput.click();
+
+    await expect(page.locator(".react-datepicker")).toBeVisible();
+
+    // Navigate DateTime picker header to December 2025 (via arrows)
+    await navigateToMonthYear(page, "December 2025");
+
+    // Click day 25
+    await page
+      .locator(
+        ".react-datepicker__day--025:not(.react-datepicker__day--outside-month)"
+      )
+      .click();
+
+    // IMPORTANT: ensure the input value really updated to Dec 25
+    await expect(dateTimeInput).toHaveValue(/December 25, 2025/);
+
+    // 3) Read confirm date-time
+    const confirmDateTimeStr = await dateTimeInput.inputValue();
+    const adjustedConfirmDateTime = parseDemoQaDateTime(confirmDateTimeStr);
+
+    return [selectedDate, adjustedConfirmDateTime];
+  } catch (error) {
+    console.error(error);
+    return null;
+  }
+}
+
+test("TC04 - Verify Adjusted Confirmed Date Selection", async ({
+  page,
+}, testInfo) => {
+  testMetadata04c(testInfo);
+  await page.goto("https://demoqa.com/date-picker", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const results = await getAdjustedConfirmDateAndTime(page);
+  expect(results).not.toBeNull();
+
+  const [selectedDate, adjustedConfirmDateTime] = results!;
+
+  const selectedDateStr = formatMMDDYYYY(selectedDate);
+  const confirmDateStr = formatMMDDYYYY(adjustedConfirmDateTime);
+
+  expect(
+    selectedDateStr === confirmDateStr,
+    `Selected date and confirmed date should match. Selected: ${selectedDateStr}, Confirmed: ${confirmDateStr}`
+  ).toBeTruthy();
+});
+
+function parseMMDDYYYY(value: string): Date {
+  const [m, d, y] = value.trim().split("/").map(Number);
+  return new Date(y, m - 1, d, 0, 0, 0, 0);
+}
+
+async function navigateToMonthYear(
+  page: Page,
+  targetMonthYearText: string
+): Promise<void> {
+  const header = page.locator(".react-datepicker__current-month");
+  await expect(header).toBeVisible();
+
+  // Parse "MMMM yyyy"
+  const target = parseMonthYear(targetMonthYearText);
+
+  let safety = 0;
+
+  while (safety < 50) {
+    const currentText = (await header.textContent())?.trim() || "";
+    const current = parseMonthYear(currentText);
+
+    if (
+      current.year === target.year &&
+      current.monthIndex === target.monthIndex
+    ) {
+      break;
+    }
+
+    if (isBefore(current, target)) {
+      await page.locator(".react-datepicker__navigation--next").click();
+    } else {
+      await page.locator(".react-datepicker__navigation--previous").click();
+    }
+
+    // Wait header to refresh (Playwright auto-waits, but this makes it more stable)
+    await expect(header).toBeVisible();
+    safety++;
+  }
+
+  if (safety >= 50) {
+    throw new Error(
+      `Failed to navigate to target month/year: ${targetMonthYearText}`
+    );
+  }
+}
+
+function parseMonthYear(text: string): { monthIndex: number; year: number } {
+  // Expected: "December 2025"
+  const parts = text.trim().split(" ");
+  if (parts.length < 2) throw new Error(`Invalid month/year header: "${text}"`);
+
+  const monthName = parts[0];
+  const year = Number(parts[1]);
+
+  if (Number.isNaN(year)) throw new Error(`Invalid year in header: "${text}"`);
+
+  return { monthIndex: monthNameToIndex(monthName), year };
+}
+
+function isBefore(
+  a: { monthIndex: number; year: number },
+  b: { monthIndex: number; year: number }
+): boolean {
+  if (a.year !== b.year) return a.year < b.year;
+  return a.monthIndex < b.monthIndex;
+}
+
+
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\" --debug",
+    "test:04a": "playwright test tests/ModulePlaywrightFramework04a.spec.ts",
+    "test:04b": "playwright test tests/ModulePlaywrightFramework04b.spec.ts",
+    "test:04c": "playwright test tests/ModulePlayWrightFramework04c.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04a" },
+    { type: "Topic", description: "Accordian" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/accordian" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04b" },
+    { type: "Topic", description: "Auto Complete" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/auto-complete" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04c(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04c" },
+    { type: "Topic", description: "Date Picker" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/date-picker" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
