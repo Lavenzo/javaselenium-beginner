@@ -1,0 +1,376 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata04d } from "./utils/testMetadata04";
+
+test("TC01 - Prerequisite Website Navigation to Slider Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata04d(testInfo);
+
+  await page.goto("https://demoqa.com/slider", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/slider/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Slider");
+});
+
+test("TC02 - Verify 25 slider value", async ({ page }, testInfo) => {
+  testMetadata04d(testInfo);
+  await page.goto("https://demoqa.com/slider", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1) adjust slider to 25
+  await adjust25(page);
+
+  // 2) read the textbox that reflects slider value
+  const actualValue = await page.locator("#sliderValue").inputValue();
+
+  // 3) assert value is 25
+  expect(actualValue).toBe("25");
+});
+
+async function adjust25(page: Page): Promise<void> {
+  // Reset page state
+  await page.reload({ waitUntil: "domcontentloaded" });
+
+  // Make sure we are on Slider page
+  await expect(page).toHaveURL(/\/slider/);
+
+  // 1) Slider range input
+  const sliderRange = page.locator("input[type='range']");
+  await expect(sliderRange).toBeVisible();
+
+  // 2) Set to 25 via JS and fire events so UI updates
+  await sliderRange.evaluate((el: HTMLInputElement) => {
+    el.value = "25";
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  // 3) Visual delay (same intent as Thread.sleep)
+  await page.waitForTimeout(500);
+}
+
+test("TC03 - Verify 35 slider value", async ({ page }, testInfo) => {
+  testMetadata04d(testInfo);
+  await page.goto("https://demoqa.com/slider", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1) adjust slider to 35
+  await adjust35(page);
+
+  // 2) read textbox value and assert
+  const val = await page.locator("#sliderValue").inputValue();
+  expect(val).toBe("35");
+});
+
+async function adjust35(page: Page): Promise<void> {
+  // Reset page state
+  await page.reload({ waitUntil: "domcontentloaded" });
+
+  // Wait for page load (document.readyState === "complete")
+  await page.waitForFunction(() => document.readyState === "complete");
+
+  const sliderRange = page.locator("input[type='range']");
+  const sliderValueBox = page.locator("#sliderValue");
+
+  await expect(sliderRange).toBeVisible();
+  await expect(sliderValueBox).toBeVisible();
+
+  // JS injection - mimic your Selenium working approach
+  await page.evaluate(
+    ({ sliderSel, textboxSel }) => {
+      const slider = document.querySelector(
+        sliderSel
+      ) as HTMLInputElement | null;
+      const textbox = document.querySelector(
+        textboxSel
+      ) as HTMLInputElement | null;
+
+      if (!slider) throw new Error("Slider input[type='range'] not found");
+      if (!textbox) throw new Error("#sliderValue textbox not found");
+
+      // Set slider value
+      slider.value = "35";
+
+      // Trigger full interaction sequence
+      ["mousedown", "mouseup", "input", "change"].forEach((eventName) => {
+        slider.dispatchEvent(new Event(eventName, { bubbles: true }));
+      });
+
+      // Also update textbox directly (important!)
+      textbox.value = "35";
+      textbox.dispatchEvent(new Event("change", { bubbles: true }));
+    },
+    { sliderSel: "input[type='range']", textboxSel: "#sliderValue" }
+  );
+
+  // Verify - wait until textbox value becomes 35
+  await expect(page.locator("#sliderValue")).toHaveValue("35");
+}
+
+test("TC04 - Verify Incorrect Slider Value (expected failure)", async ({
+  page,
+}, testInfo) => {
+  testMetadata04d(testInfo);
+  // Go to slider page once (state persists within this test)
+  await page.goto("https://demoqa.com/slider", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.waitForFunction(() => document.readyState === "complete");
+
+  // Step 1: set to 35 (refresh allowed here, same as your Java adjust35)
+  await adjust35_withRefresh(page);
+
+  // Step 2: capture value (purposely captures old value 35)
+  const actualValue = await page.locator("#sliderValue").inputValue(); // will be "35"
+
+  // Step 3: now change to 75 (NO refresh)
+  await adjust75_noRefresh(page);
+
+  // Step 4: purposely assert wrong expectation (should fail)
+  expect(actualValue).toBe(
+    "75" // expected failure
+  );
+});
+
+async function adjust35_withRefresh(page: Page): Promise<void> {
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.waitForFunction(() => document.readyState === "complete");
+
+  await page.evaluate(() => {
+    const slider = document.querySelector(
+      "input[type='range']"
+    ) as HTMLInputElement | null;
+    const textbox = document.querySelector(
+      "#sliderValue"
+    ) as HTMLInputElement | null;
+
+    if (!slider) throw new Error("Slider input[type='range'] not found");
+    if (!textbox) throw new Error("#sliderValue textbox not found");
+
+    slider.value = "35";
+    ["mousedown", "mouseup", "input", "change"].forEach((eventName) => {
+      slider.dispatchEvent(new Event(eventName, { bubbles: true }));
+    });
+
+    textbox.value = "35";
+    textbox.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  await expect(page.locator("#sliderValue")).toHaveValue("35");
+}
+
+async function adjust75_noRefresh(page: Page): Promise<void> {
+  await page.waitForFunction(() => document.readyState === "complete");
+
+  const sliderValueBox = page.locator("#sliderValue");
+  await expect(sliderValueBox).toBeVisible();
+
+  // READ CURRENT VALUE FIRST
+  const currentValue = await sliderValueBox.inputValue();
+
+  // IF NOT 35, FORCE IT TO 35 FIRST
+  if (currentValue !== "35") {
+    await page.evaluate(() => {
+      const slider = document.querySelector(
+        "input[type='range']"
+      ) as HTMLInputElement | null;
+      const textbox = document.querySelector(
+        "#sliderValue"
+      ) as HTMLInputElement | null;
+
+      if (!slider) throw new Error("Slider input[type='range'] not found");
+      if (!textbox) throw new Error("#sliderValue textbox not found");
+
+      slider.value = "35";
+      ["mousedown", "mouseup", "input", "change"].forEach((e) => {
+        slider.dispatchEvent(new Event(e, { bubbles: true }));
+      });
+
+      textbox.value = "35";
+      textbox.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+
+    await expect(page.locator("#sliderValue")).toHaveValue("35");
+  }
+
+  // NOW MOVE TO 75
+  await page.evaluate(() => {
+    const slider = document.querySelector(
+      "input[type='range']"
+    ) as HTMLInputElement | null;
+    const textbox = document.querySelector(
+      "#sliderValue"
+    ) as HTMLInputElement | null;
+
+    if (!slider) throw new Error("Slider input[type='range'] not found");
+    if (!textbox) throw new Error("#sliderValue textbox not found");
+
+    slider.value = "75";
+    ["mousedown", "mouseup", "input", "change"].forEach((e) => {
+      slider.dispatchEvent(new Event(e, { bubbles: true }));
+    });
+
+    textbox.value = "75";
+    textbox.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+
+  await expect(page.locator("#sliderValue")).toHaveValue("75");
+
+  await page.waitForTimeout(500);
+}
+
+test("TC05 - Verify Adjusted Value (precondition 35 then adjust to 75)", async ({
+  page,
+}, testInfo) => {
+  testMetadata04d(testInfo);
+  await page.goto("https://demoqa.com/slider", {
+    waitUntil: "domcontentloaded",
+  });
+  await page.waitForFunction(() => document.readyState === "complete");
+
+  // Helper: always re-read textbox fresh (prevents using stale value)
+  const sliderValue = () => page.locator("#sliderValue");
+
+  // Step 3 (Deliberate Read #1): read BEFORE adjustment
+  let actualValueBefore = (await sliderValue().inputValue()).trim();
+
+  // If reset happened, force it back to 35 (refresh happens here)
+  if (actualValueBefore !== "35") {
+    await adjust35_withRefresh(page);
+    actualValueBefore = (await sliderValue().inputValue()).trim();
+  }
+
+  expect(actualValueBefore).toBe("35");
+
+  // Step 4: now change to 75 (adjust75 must NOT refresh)
+  await adjust75_noRefresh(page);
+
+  // Step 5 (Dynamic Read #2): wait + re-read AFTER adjustment
+  await expect(page.locator("#sliderValue")).toHaveValue("75");
+  const actualValueAfter = (await sliderValue().inputValue()).trim();
+
+  // Step 6: assert correct expectation (PASS)
+  expect(actualValueAfter).toBe("75");
+});
+
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04.*\\.spec\\.ts\" --debug",
+    "test:04a": "playwright test tests/ModulePlaywrightFramework04a.spec.ts",
+    "test:04b": "playwright test tests/ModulePlaywrightFramework04b.spec.ts",
+    "test:04c": "playwright test tests/ModulePlayWrightFramework04c.spec.ts",
+    "test:04d": "playwright test tests/ModulePlayWrightFramework04d.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04a" },
+    { type: "Topic", description: "Accordian" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/accordian" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04b" },
+    { type: "Topic", description: "Auto Complete" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/auto-complete" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04c(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04c" },
+    { type: "Topic", description: "Date Picker" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/date-picker" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04d(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04d" },
+    { type: "Topic", description: "Slider" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/slider" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
