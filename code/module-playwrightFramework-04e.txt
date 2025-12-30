@@ -1,0 +1,292 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata04e } from "./utils/testMetadata04";
+
+test("TC01 - Prerequisite Website Navigation to Progress Bar Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata04e(testInfo);
+
+  await page.goto("https://demoqa.com/progress-bar", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/progress-bar/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Progress Bar");
+});
+
+async function stopProgressBarInRange(
+  page: Page,
+  minPercent: number,
+  maxPercent: number
+): Promise<number> {
+  // Navigate (keep here or do it in your test – your choice)
+  await page.goto("https://demoqa.com/progress-bar", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const startStopBtn = page.locator("#startStopButton");
+  await expect(startStopBtn).toBeVisible();
+
+  // Start progress
+  await startStopBtn.click();
+
+  const progressBar = page.locator("div[role='progressbar']");
+  await expect(progressBar).toBeVisible();
+
+  const timeoutMs = 15000; // safety timeout
+  const startTime = Date.now();
+
+  let currentValue = -1;
+
+  while (Date.now() - startTime < timeoutMs) {
+    // aria-valuenow is the live percentage
+    const value = await progressBar.getAttribute("aria-valuenow");
+
+    if (value && value.trim() !== "") {
+      const parsed = Number(value.trim());
+      if (!Number.isNaN(parsed)) {
+        currentValue = parsed;
+        console.log(`Current progress: ${currentValue}%`);
+
+        // Stop immediately when within range
+        if (currentValue >= minPercent && currentValue <= maxPercent) {
+          await startStopBtn.click();
+          console.log(`Stopped at: ${currentValue}%`);
+          return currentValue;
+        }
+      }
+    }
+
+    // small poll interval (similar to your 80ms sleep)
+    await page.waitForTimeout(80);
+  }
+
+  // If we reach here, we didn't hit range in time - try stop anyway, then fail
+  try {
+    await startStopBtn.click();
+  } catch {
+    // ignore
+  }
+
+  throw new Error(
+    `Did not hit range ${minPercent}-${maxPercent}% within timeout.`
+  );
+}
+
+test("TC02 - Verify Positive Test Scenario with 20 Percent Range Checks", async ({
+  page,
+}, testInfo) => {
+  // 1) Click Start (done inside helper)
+  // 2) Poll until value is within 20-30
+  // 3) Click Stop immediately when within range
+  // 4) Assert final stopped value is within range + print exact result
+  testMetadata04e(testInfo);
+  const stoppedAt = await stopProgressBarInRange(page, 20, 30);
+
+  console.log(`Final stopped progress (for assertion): ${stoppedAt}%`);
+
+  expect(
+    stoppedAt >= 20 && stoppedAt <= 30,
+    `Progress bar stopped at ${stoppedAt}% (expected between 20% and 30%)`
+  ).toBeTruthy();
+});
+
+test("TC03 - Verify Positive Test Scenario with 70 Percent Range Checks", async ({
+  page,
+}, testInfo) => {
+  // 1) Click Start (done inside helper)
+  // 2) Poll until value is within 70–80
+  // 3) Click Stop immediately when within range
+  // 4) Assert final stopped value is within range + print exact result
+
+  testMetadata04e(testInfo);
+  const stoppedAt = await stopProgressBarInRange(page, 70, 80);
+
+  console.log(`Final stopped progress (for assertion): ${stoppedAt}%`);
+
+  expect(
+    stoppedAt >= 70 && stoppedAt <= 80,
+    `Progress bar stopped at ${stoppedAt}% (expected between 70% and 80%)`
+  ).toBeTruthy();
+});
+
+async function runProgressBarUntilComplete(page: Page): Promise<void> {
+  const startStopBtn = page.locator("#startStopButton");
+  const progressBar = page.locator("div[role='progressbar']");
+  const progressText = page.locator("#progressBar");
+
+  // Start
+  await startStopBtn.click();
+
+  // Wait until aria-valuenow reaches 100 (most reliable)
+  await expect
+    .poll(
+      async () => {
+        const val = await progressBar.getAttribute("aria-valuenow");
+        return val ? parseInt(val.trim(), 10) : -1;
+      },
+      {
+        timeout: 30000, // allow enough time to reach 100
+        message: "Progress bar did not reach 100% within timeout",
+      }
+    )
+    .toBe(100);
+
+  // Optional: confirm UI text also shows 100%
+  await expect(progressText).toContainText("100%", { timeout: 5000 });
+}
+
+test("TC04 - Verify Negative Test Scenario for Button Label After Completion", async ({
+  page,
+}, testInfo) => {
+  await page.goto("https://demoqa.com/progress-bar", {
+    waitUntil: "domcontentloaded",
+  });
+
+  testMetadata04e(testInfo);
+
+  // 1) Run until complete
+  await runProgressBarUntilComplete(page);
+
+  // 2) Reset button should now be visible
+  const resetButton = page.locator("#resetButton");
+  await expect(resetButton).toBeVisible({ timeout: 10000 });
+
+  // 3) Get button label
+  const actualLabel = (await resetButton.textContent())?.trim() ?? "";
+  const expectedLabel = "Reset Progress";
+
+  console.log(`Button label after completion: ${actualLabel}`);
+
+  // 4) Assert (INTENTIONAL FAILURE)
+  expect(actualLabel, "Button label mismatch after progress reaches 100%").toBe(
+    expectedLabel
+  );
+});
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04a" },
+    { type: "Topic", description: "Accordian" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/accordian" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04b" },
+    { type: "Topic", description: "Auto Complete" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/auto-complete" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04c(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04c" },
+    { type: "Topic", description: "Date Picker" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/date-picker" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04d(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04d" },
+    { type: "Topic", description: "Slider" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/slider" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04e(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04e" },
+    { type: "Topic", description: "Progress Bar" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/progress-bar" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --debug",
+    "test:04e": "playwright test tests/ModulePlaywrightFramework04P2e.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
