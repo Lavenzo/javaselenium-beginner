@@ -1,0 +1,425 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata04f } from "./utils/testMetadata04";
+
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  // If page already closed, do nothing
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape (no waiting)
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  // If page got replaced/closed, stop
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present (no waitForTimeout)
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      // Use first() to avoid strict-mode issues
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      // restore scroll/click
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+test("TC01 - Prerequisite Website Navigation to Tabs Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata04f(testInfo);
+
+  await page.goto("https://demoqa.com/tabs", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // dismiss Google ads if appear
+  await dismissDemoQAAds(page);
+
+  // If ads re-appear right before click, dismiss again
+  await dismissDemoQAAds(page);
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/tabs/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Tabs");
+});
+
+async function getFirstTabValue(page: Page): Promise<string> {
+  const whatTab = page.locator("#demo-tab-what");
+  const whatPanel = page.locator("#demo-tabpane-what");
+
+  await whatTab.scrollIntoViewIfNeeded();
+
+  // quick ad dismissal just before click (optional but helps stability)
+  await dismissDemoQAAds(page);
+
+  await whatTab.click({ timeout: 5000 }).catch(async () => {
+    await dismissDemoQAAds(page);
+    await whatTab.click({ timeout: 5000, force: true });
+  });
+
+  // Wait until panel is active (more reliable than visibility)
+  await expect(whatPanel).toHaveAttribute("aria-hidden", "false", {
+    timeout: 8000,
+  });
+
+  // Faster than innerText()
+  const text = await whatPanel.textContent();
+  return (text ?? "").trim();
+}
+
+test("TC02 - Verify First Tab Value", async ({ page }, testInfo) => {
+  testMetadata04f(testInfo);
+  // Navigate to the page
+  await page.goto("https://demoqa.com/tabs", { waitUntil: "domcontentloaded" });
+
+  // dismiss Google ads if appear (once is enough)
+  await dismissDemoQAAds(page);
+
+  // 1. Call the method
+  const actualText = await getFirstTabValue(page);
+
+  // 2. Expected text (FULL text validation – Option A)
+  const expectedText =
+    "Lorem Ipsum is simply dummy text of the printing and typesetting industry. " +
+    "Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer " +
+    "took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, " +
+    "but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s " +
+    "with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing " +
+    "software like Aldus PageMaker including versions of Lorem Ipsum.";
+
+  // 3. Assertion
+  expect(actualText).toBe(expectedText);
+});
+
+async function getSecondTabValue(page: Page): Promise<string> {
+  const originTab = page.locator("#demo-tab-origin");
+  const originTabPanel = page.locator("#demo-tabpane-origin");
+
+  // Scroll into view
+  await originTab.scrollIntoViewIfNeeded();
+
+  // Always try to dismiss ads first
+  await dismissDemoQAAds(page);
+
+  // --- Attempt 1: normal click
+  await originTab.click({ timeout: 5000 }).catch(() => {});
+
+  // If not activated, attempt 2
+  const selected1 = await originTab.getAttribute("aria-selected");
+  if (selected1 !== "true") {
+    await dismissDemoQAAds(page);
+
+    // --- Attempt 2: force click (last resort for ad overlays / actionability issues)
+    await originTab.click({ timeout: 5000, force: true }).catch(() => {});
+  }
+
+  // Wait until the panel is activated (more reliable than waiting aria-selected)
+  await expect(originTabPanel).toHaveAttribute("aria-hidden", "false", {
+    timeout: 10000,
+  });
+
+  // Extract both paragraphs inside Origin tab
+  const paragraphs = originTabPanel.locator("p");
+
+  const text1 = (await paragraphs.nth(0).innerText()).trim();
+  const text2 = (await paragraphs.nth(1).innerText()).trim();
+
+  return `${text1}\n${text2}`;
+}
+
+test("TC03 - Verify Second Tab", async ({ page }, testInfo) => {
+  testMetadata04f(testInfo);
+  // Navigate to the page
+  await page.goto("https://demoqa.com/tabs", { waitUntil: "domcontentloaded" });
+
+  // dismiss Google ads if appear
+  await dismissDemoQAAds(page);
+
+  // 1. Get actual text
+  const actualText = await getSecondTabValue(page);
+
+  // 2. Expected text (FULL text validation)
+  const expectedText =
+    "Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in a piece of classical Latin " +
+    "literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor at Hampden-Sydney " +
+    "College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, " +
+    "and going through the cites of the word in classical literature, discovered the undoubtable source. " +
+    'Lorem Ipsum comes from sections 1.10.32 and 1.10.33 of "de Finibus Bonorum et Malorum" (The Extremes of ' +
+    "Good and Evil) by Cicero, written in 45 BC. This book is a treatise on the theory of ethics, very popular " +
+    'during the Renaissance. The first line of Lorem Ipsum, "Lorem ipsum dolor sit amet..", comes from a ' +
+    "line in section 1.10.32.\n" +
+    "The standard chunk of Lorem Ipsum used since the 1500s is reproduced below for those interested. " +
+    'Sections 1.10.32 and 1.10.33 from "de Finibus Bonorum et Malorum" by Cicero are also reproduced in their ' +
+    "exact original form, accompanied by English versions from the 1914 translation by H. Rackham.";
+
+  // 3. Assertion – should PASS
+  expect(actualText).toBe(expectedText);
+});
+
+async function getThirdTabValue(page: Page): Promise<string> {
+  const useTab = page.locator("#demo-tab-use");
+  const useTabPanel = page.locator("#demo-tabpane-use");
+
+  // Scroll into view to avoid interception
+  await useTab.scrollIntoViewIfNeeded();
+
+  // Dismiss ads if they appear (your helper)
+  await dismissDemoQAAds(page);
+
+  // Try normal click, fallback to force click if needed
+  try {
+    await useTab.click({ timeout: 5000 });
+  } catch {
+    await dismissDemoQAAds(page);
+    await useTab.click({ timeout: 5000, force: true });
+  }
+
+  // Wait until Use tab panel is activated (more reliable than toBeVisible)
+  await expect(useTabPanel).toHaveAttribute("aria-hidden", "false", {
+    timeout: 10000,
+  });
+
+  // Extract paragraph text (p.mt-3)
+  const paragraph = useTabPanel.locator("p.mt-3");
+
+  // textContent() is faster than innerText()
+  const text = await paragraph.textContent();
+  return (text ?? "").trim();
+}
+
+test("TC04 - Verify Third Tab", async ({ page }, testInfo) => {
+  testMetadata04f(testInfo);
+
+  await page.goto("https://demoqa.com/tabs", { waitUntil: "domcontentloaded" });
+  await dismissDemoQAAds(page);
+
+  // 1. Call method
+  const actualText = await getThirdTabValue(page);
+
+  // 2. Expected text (FULL paragraph validation)
+  const expectedText =
+    "It is a long established fact that a reader will be distracted by the readable content of a page " +
+    "when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal " +
+    "distribution of letters, as opposed to using 'Content here, content here', making it look like " +
+    "readable English. Many desktop publishing packages and web page editors now use Lorem Ipsum as their " +
+    "default model text, and a search for 'lorem ipsum' will uncover many web sites still in their infancy. " +
+    "Various versions have evolved over the years, sometimes by accident, sometimes on purpose (injected " +
+    "humour and the like).";
+
+  // 3. Assert – Expected PASS
+  expect(actualText).toBe(expectedText);
+});
+
+async function getFourthTabValue(page: Page): Promise<string> {
+  try {
+    const moreTabPanel = page.locator("#demo-tabpane-more");
+
+    // Check if panel exists in DOM
+    const count = await moreTabPanel.count();
+    if (count === 0) {
+      return "";
+    }
+
+    // Check visibility (disabled tab usually keeps panel hidden)
+    if (await moreTabPanel.isVisible()) {
+      const text = await moreTabPanel.textContent();
+      return (text ?? "").trim();
+    }
+  } catch {
+    // Expected behavior:
+    // - tab not clickable
+    // - panel not visible
+    // - element not interactable
+  }
+
+  // Disabled tab → return blank
+  return "";
+}
+
+test("TC05 - Verify Fourth Tab (Disabled) – Negative Scenario", async ({
+  page,
+}) => {
+  await page.goto("https://demoqa.com/tabs", { waitUntil: "domcontentloaded" });
+
+  const text = await getFourthTabValue(page);
+
+  // Negative scenario requirement:
+  // If tab is disabled -> text returns "" -> FAIL (expected negative)
+  expect(text, "More tab is not clickable as expected").not.toBe("");
+});
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04a" },
+    { type: "Topic", description: "Accordian" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/accordian" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04b" },
+    { type: "Topic", description: "Auto Complete" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/auto-complete" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04c(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04c" },
+    { type: "Topic", description: "Date Picker" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/date-picker" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04d(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04d" },
+    { type: "Topic", description: "Slider" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/slider" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04e(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04e" },
+    { type: "Topic", description: "Progress Bar" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/progress-bar" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04f(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04f" },
+    { type: "Topic", description: "Tabs" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/tabs" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --debug",
+    "test:04e": "playwright test tests/ModulePlaywrightFramework04P2e.spec.ts",
+    "test:04f": "playwright test tests/ModulePlaywrightFramework04P2f.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
