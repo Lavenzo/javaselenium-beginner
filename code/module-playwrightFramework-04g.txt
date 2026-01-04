@@ -1,0 +1,406 @@
+// Test File
+import { Locator, test, expect, type Page } from "@playwright/test";
+import { testMetadata04g } from "./utils/testMetadata04";
+
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  // If page already closed, do nothing
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape (no waiting)
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  // If page got replaced/closed, stop
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present (no waitForTimeout)
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      // Use first() to avoid strict-mode issues
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      // restore scroll/click
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+test("TC01 - Prerequisite Website Navigation to Tool Tips Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata04g(testInfo);
+
+  await page.goto("https://demoqa.com/tool-tips", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // dismiss Google ads if appear
+  await dismissDemoQAAds(page);
+
+  // If ads re-appear right before click, dismiss again
+  await dismissDemoQAAds(page);
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/tool-tips/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Tool Tips");
+});
+
+async function hoverAndGetTooltipText(
+  page: Page,
+  target: Locator,
+  tooltipInner: Locator,
+  timeoutMs = 15_000
+): Promise<string> {
+  await target.waitFor({ state: "visible", timeout: timeoutMs });
+
+  await target.scrollIntoViewIfNeeded();
+
+  // Let page settle (ads/reflow)
+  await page.waitForLoadState("domcontentloaded");
+  await page.waitForTimeout(200);
+
+  // Optional but helps with intermittent overlay issues
+  await waitForNotCovered(target, timeoutMs);
+
+  // Try hover up to 3 times
+  for (let i = 0; i < 3; i++) {
+    try {
+      await target.hover({ position: { x: 1, y: 1 }, timeout: timeoutMs });
+
+      await tooltipInner.waitFor({ state: "visible", timeout: 2_000 });
+      const txt = (await tooltipInner.innerText()).trim();
+      if (txt) return txt;
+    } catch {
+      await page.waitForTimeout(200);
+    }
+  }
+
+  // Last resort - force hover with JS events
+  await forceHoverWithJS(target);
+
+  await tooltipInner.waitFor({ state: "visible", timeout: timeoutMs });
+  return (await tooltipInner.innerText()).trim();
+}
+
+async function waitForNotCovered(
+  target: Locator,
+  timeoutMs: number
+): Promise<void> {
+  const start = Date.now();
+
+  while (Date.now() - start < timeoutMs) {
+    const ok = await target.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      const x = r.left + Math.min(5, r.width / 2);
+      const y = r.top + Math.min(5, r.height / 2);
+      const topEl = document.elementFromPoint(x, y);
+      return topEl === el || (topEl && el.contains(topEl));
+    });
+
+    if (ok) return;
+    await new Promise((res) => setTimeout(res, 150));
+  }
+}
+
+async function forceHoverWithJS(target: Locator): Promise<void> {
+  await target.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const x = rect.left + Math.min(5, rect.width / 2);
+    const y = rect.top + Math.min(5, rect.height / 2);
+
+    const opts: MouseEventInit = {
+      bubbles: true,
+      cancelable: true,
+      clientX: x,
+      clientY: y,
+    };
+    el.dispatchEvent(new MouseEvent("mouseover", opts));
+    el.dispatchEvent(new MouseEvent("mousemove", opts));
+    el.dispatchEvent(new MouseEvent("mouseenter", opts));
+  });
+}
+
+/** Specific helper for your button tooltip (matches your Java method getHoverButtonText) */
+async function getHoverButtonText(page: Page): Promise<string> {
+  return hoverAndGetTooltipText(
+    page,
+    page.locator("#toolTipButton"),
+    page.locator("#buttonToolTip .tooltip-inner"),
+    15_000
+  );
+}
+
+async function getHoverTextBox(page: Page): Promise<string> {
+  return hoverAndGetTooltipText(
+    page,
+    page.locator("#toolTipTextField"),
+    page.locator("#textFieldToolTip .tooltip-inner"),
+    15_000
+  );
+}
+
+async function getHoveredContrary(page: Page): Promise<string> {
+  return hoverAndGetTooltipText(
+    page,
+    page.locator("//a[normalize-space()='Contrary']"),
+    page.locator("#contraryTexToolTip .tooltip-inner"),
+    10_000
+  );
+}
+
+async function getSect1_10_32(page: Page): Promise<string> {
+  return hoverAndGetTooltipText(
+    page,
+    page.locator("text=1.10.32"),
+    page.locator("#sectionToolTip .tooltip-inner"),
+    10_000
+  );
+}
+
+test("TC02 - Verify Hover Button Text", async ({ page }, testInfo) => {
+  testMetadata04g(testInfo);
+  await page.goto("https://demoqa.com/tool-tips");
+  const actualText = await getHoverButtonText(page);
+  const expectedText = "You hovered over the Button";
+
+  console.log("Expected:", expectedText);
+  console.log("Actual  :", actualText);
+
+  expect(actualText).toBe(expectedText);
+});
+
+test("TC03 - Verify Hovered Textbox", async ({ page }, testInfo) => {
+  testMetadata04g(testInfo);
+  await page.goto("https://demoqa.com/tool-tips");
+
+  const actualText = await getHoverTextBox(page);
+  const expectedText = "You hovered over the text field";
+
+  console.log("Expected:", expectedText);
+  console.log("Actual  :", actualText);
+
+  expect(actualText).toBe(expectedText);
+});
+
+test("TC04 - Verify Hover Contrary Text (Expected FAIL)", async ({
+  page,
+}, testInfo) => {
+  testMetadata04g(testInfo);
+  await page.goto("https://demoqa.com/tool-tips");
+
+  // 1️⃣ Get actual tooltip text
+  const actualText = await getHoveredContrary(page);
+
+  // 2️⃣ Expected text (intentionally wrong)
+  const expectedText = "You hovered over the Contrary link";
+
+  console.log("Expected:", expectedText);
+  console.log("Actual  :", actualText);
+
+  // 3️⃣ Assertion – EXPECTED TO FAIL
+  expect(actualText).toBe(expectedText);
+});
+
+test("TC05 - Verify Section 1.10.32", async ({ page }, testInfo) => {
+  testMetadata04g(testInfo);
+  await page.goto("https://demoqa.com/tool-tips");
+
+  const actualText = await getSect1_10_32(page);
+  const expectedText = "You hovered over the 1.10.32";
+
+  console.log("Expected:", expectedText);
+  console.log("Actual  :", actualText);
+
+  expect(actualText).toBe(expectedText);
+});
+
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04a" },
+    { type: "Topic", description: "Accordian" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/accordian" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04b" },
+    { type: "Topic", description: "Auto Complete" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/auto-complete" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04c(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04c" },
+    { type: "Topic", description: "Date Picker" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/date-picker" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04d(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04d" },
+    { type: "Topic", description: "Slider" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/slider" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04e(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04e" },
+    { type: "Topic", description: "Progress Bar" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/progress-bar" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04f(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04f" },
+    { type: "Topic", description: "Tabs" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/tabs" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04g(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04g" },
+    { type: "Topic", description: "Tool Tips" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/tool-tips" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --debug",
+    "test:04e": "playwright test tests/ModulePlaywrightFramework04P2e.spec.ts",
+    "test:04f": "playwright test tests/ModulePlaywrightFramework04P2f.spec.ts",
+    "test:04g": "playwright test tests/ModulePlaywrightFramework04P2g.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
