@@ -1,0 +1,625 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import {
+  testMetadata04d,
+  testMetadata04e,
+  testMetadata04f,
+  testMetadata04g,
+  testMetadata04h,
+} from "./utils/testMetadata04";
+
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  // If page already closed, do nothing
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape (no waiting)
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  // If page got replaced/closed, stop
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present (no waitForTimeout)
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      // Use first() to avoid strict-mode issues
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      // restore scroll/click
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+test("TC01 - Prerequisite Website Navigation to Menu Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata04h(testInfo);
+
+  await page.goto("https://demoqa.com/menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // dismiss Google ads if appear
+  await dismissDemoQAAds(page);
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/menu/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Menu");
+});
+
+async function getHoveredMainItem1(page: Page): Promise<string> {
+  try {
+    // Locate "Main Item 1"
+    const mainItem1 = page.locator("//a[text()='Main Item 1']");
+
+    // Hover over Main Item 1
+    await mainItem1.hover();
+
+    // Small wait to allow hover UI to appear (if any)
+    await page.waitForTimeout(1000);
+
+    // Try to find any hovered / visible sub item
+    const hoveredItems = page.locator("//ul[contains(@class,'submenu')]//a");
+    const count = await hoveredItems.count();
+
+    if (count === 0) return "";
+
+    return (await hoveredItems.first().innerText()).trim();
+  } catch {
+    return "";
+  }
+}
+
+test("TC02 - Verify Hovered Main Item 1", async ({ page }, testInfo) => {
+  testMetadata04g(testInfo);
+  // Equivalent to dependsOnMethods = verifyPrereqIsWorking
+  await page.goto("https://demoqa.com/menu");
+
+  const hoveredItem = await getHoveredMainItem1(page);
+  const expectedHoveredItem = "Main Item 1";
+
+  console.log("Actual Hovered Main Item 1:", hoveredItem);
+  console.log("Expected Hovered Main Item 1:", expectedHoveredItem);
+
+  // This assertion is INTENTIONALLY expected to FAIL
+  await expect(hoveredItem, "No hovered item detected for Main Item 1").toBe(
+    expectedHoveredItem
+  );
+
+  console.log("Menu for Main Item 1 verified successfully");
+});
+
+async function getHoveredMainItem2(page: Page): Promise<string> {
+  try {
+    // 1) Hover over Main Item 2
+    const mainItem2 = page.locator("//a[text()='Main Item 2']");
+    await mainItem2.hover();
+
+    // 2) Check if submenu UL exists (DemoQA uses following-sibling UL)
+    const subMenuUl = page.locator(
+      "//a[text()='Main Item 2']/following-sibling::ul"
+    );
+
+    // Wait briefly for hover menu to appear
+    await page.waitForTimeout(500);
+
+    // 3) If UL exists and is visible, return Main Item 2 text
+    if (
+      (await subMenuUl.count()) > 0 &&
+      (await subMenuUl.first().isVisible())
+    ) {
+      return (await mainItem2.innerText()).trim();
+    }
+
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+test("TC03 - Verify Hovered Main Item 2", async ({ page }, testInfo) => {
+  testMetadata04f(testInfo);
+  // Equivalent to dependsOnMethods = verifyPrereqIsWorking
+  await page.goto("https://demoqa.com/menu");
+
+  const actualHoveredItem = await getHoveredMainItem2(page);
+  const expectedHoveredItem = "Main Item 2";
+
+  console.log("Actual Hovered Main Item 2:", actualHoveredItem);
+  console.log("Expected Hovered Main Item 2:", expectedHoveredItem);
+
+  await expect(
+    actualHoveredItem,
+    "Hovered Main Item 2 does not match expected!"
+  ).toBe(expectedHoveredItem);
+
+  console.log("Menu for Main Item 2 verified successfully");
+});
+
+async function getHoveredSubItem1(page: Page): Promise<string> {
+  try {
+    // 1) Hover over Main Item 2
+    const mainItem2 = page.locator("//a[text()='Main Item 2']");
+    await mainItem2.hover();
+
+    await page.waitForTimeout(800);
+
+    // 2) Hover over Sub Item (the first one under Main Item 2)
+    // Using li[1]/a keeps it consistent with the DOM structure
+    const subItem1 = page.locator(
+      "//a[text()='Main Item 2']/parent::li/ul/li[1]/a"
+    );
+    await subItem1.hover();
+
+    await page.waitForTimeout(500);
+
+    // 3) Get the String value and return
+    return (await subItem1.innerText()).trim();
+  } catch {
+    return "";
+  }
+}
+
+test("TC04 - Verify Hovered Sub Item 1", async ({ page }, testInfo) => {
+  testMetadata04e(testInfo);
+  // Equivalent to dependsOnMethods = verifyPrereqIsWorking
+  await page.goto("https://demoqa.com/menu");
+
+  const actualHoveredItem = await getHoveredSubItem1(page);
+  const expectedHoveredItem = "Sub Item";
+
+  console.log("Actual Hovered Sub Item 1:", actualHoveredItem);
+  console.log("Expected Hovered Sub Item 1:", expectedHoveredItem);
+
+  await expect(
+    actualHoveredItem,
+    "Hovered Sub Item 1 does not match expected!"
+  ).toBe(expectedHoveredItem);
+
+  console.log("Menu for Sub Item 1 verified successfully");
+});
+
+async function getHoveredSubItem2(page: Page): Promise<string> {
+  try {
+    // 1) Hover over Main Item 2
+    const mainItem2 = page.locator("//a[text()='Main Item 2']");
+    await mainItem2.hover();
+
+    await page.waitForTimeout(800);
+
+    // 2) Hover over the 2nd Sub Item under Main Item 2
+    // DemoQA structure: <li> → <a>Main Item 2</a> → <ul> → <li[2]><a>Sub Item</a>
+    const subItem2 = page.locator(
+      "//a[text()='Main Item 2']/following-sibling::ul/li[2]/a"
+    );
+
+    await subItem2.hover();
+
+    await page.waitForTimeout(500);
+
+    // 3) Return the value as a String
+    return (await subItem2.innerText()).trim();
+  } catch {
+    return "";
+  }
+}
+
+test("TC05 - Verify Hovered Sub Item 2", async ({ page }, testInfo) => {
+  testMetadata04d(testInfo);
+  // Equivalent to dependsOnMethods = verifyPrereqIsWorking
+  await page.goto("https://demoqa.com/menu");
+
+  const actualHoveredItem = await getHoveredSubItem2(page);
+  const expectedHoveredItem = "Sub Item";
+
+  console.log("Actual Hovered Sub Item 2:", actualHoveredItem);
+  console.log("Expected Hovered Sub Item 2:", expectedHoveredItem);
+
+  await expect(
+    actualHoveredItem,
+    "Hovered Sub Item 2 does not match expected!"
+  ).toBe(expectedHoveredItem);
+
+  console.log("Menu for Sub Item 2 verified successfully");
+});
+
+async function getHoveredSubSubList(page: Page): Promise<string> {
+  try {
+    // 1) Hover over Main Item 2
+    const mainItem2 = page.locator("//a[text()='Main Item 2']");
+    await mainItem2.hover();
+
+    await page.waitForTimeout(800);
+
+    // 2) Hover over SUB SUB LIST »
+    // DemoQA: Main Item 2 submenu is a following-sibling <ul>
+    const subSubList = page.locator(
+      "//a[text()='Main Item 2']/following-sibling::ul/li/a[contains(text(),'SUB SUB LIST')]"
+    );
+    await subSubList.hover();
+
+    await page.waitForTimeout(800);
+
+    // 3) Check if there is a nested <ul> inside SUB SUB LIST »
+    const nestedUl = page.locator(
+      "//a[contains(text(),'SUB SUB LIST')]/parent::li/ul"
+    );
+
+    // 4) If there is, return the text of SUB SUB LIST »
+    if ((await nestedUl.count()) > 0 && (await nestedUl.first().isVisible())) {
+      const text = (await subSubList.innerText()).replace("»", "").trim();
+      return text;
+    }
+
+    return "";
+  } catch {
+    return "";
+  }
+}
+
+test("TC06 - Verify Hovered Sub Sub List", async ({ page }, testInfo) => {
+  testMetadata04h(testInfo);
+  // Equivalent to dependsOnMethods = verifyPrereqIsWorking
+  await page.goto("https://demoqa.com/menu");
+
+  const actualHoveredItem = await getHoveredSubSubList(page);
+  const expectedHoveredItem = "SUB SUB LIST";
+
+  console.log("Actual Hovered Sub Sub List:", `'${actualHoveredItem}'`);
+  console.log("Expected Hovered Sub Sub List:", expectedHoveredItem);
+
+  await expect(
+    actualHoveredItem,
+    "Hovered Sub Sub List does not match expected!"
+  ).toBe(expectedHoveredItem);
+
+  console.log("Menu for Sub Sub List verified successfully");
+});
+
+async function getHoveredSubSubItem1(page: Page): Promise<string> {
+  try {
+    // 1) Hover over Main Item 2
+    const mainItem2 = page.locator("//a[normalize-space()='Main Item 2']");
+    await mainItem2.scrollIntoViewIfNeeded();
+    await mainItem2.hover();
+
+    // Wait for Main Item 2 submenu UL (DemoQA: following-sibling::ul)
+    const mainItem2Ul = page.locator(
+      "//a[normalize-space()='Main Item 2']/following-sibling::ul"
+    );
+    await mainItem2Ul.first().waitFor({ state: "visible", timeout: 2000 });
+
+    // 2) Hover over SUB SUB LIST »
+    const subSubListLink = mainItem2Ul.locator(
+      "xpath=.//a[contains(normalize-space(),'SUB SUB LIST')]"
+    );
+    await subSubListLink.hover();
+
+    // 3) Wait for nested UL under SUB SUB LIST
+    const subSubListLi = subSubListLink.locator("xpath=ancestor::li[1]");
+    const nestedUl = subSubListLi.locator("xpath=.//ul");
+    await nestedUl.first().waitFor({ state: "visible", timeout: 2000 });
+
+    // 4) Hover over Sub Sub Item 1
+    const subSubItem1 = nestedUl.locator(
+      "xpath=.//a[normalize-space()='Sub Sub Item 1']"
+    );
+    await subSubItem1.first().waitFor({ state: "visible", timeout: 2000 });
+    await subSubItem1.hover();
+
+    // Return text
+    return (await subSubItem1.innerText()).trim();
+  } catch {
+    return "";
+  }
+}
+
+test("TC07 - Verify Hovered Sub Sub Item 1", async ({ page }, testInfo) => {
+  testMetadata04h(testInfo);
+  // Equivalent to dependsOnMethods = verifyPrereqIsWorking
+  await page.goto("https://demoqa.com/menu");
+
+  const actualHoveredItem = await getHoveredSubSubItem1(page);
+  const expectedHoveredItem = "Sub Sub Item 1";
+
+  console.log("Actual Hovered Sub Sub Item 1:", `'${actualHoveredItem}'`);
+  console.log("Expected Hovered Sub Sub Item 1:", expectedHoveredItem);
+
+  await expect(
+    actualHoveredItem,
+    "Hovered Sub Sub Item 1 does not match expected!"
+  ).toBe(expectedHoveredItem);
+
+  console.log("Menu for Sub Sub Item 1 verified successfully");
+});
+
+async function getHoveredSubSubItem2(page: Page): Promise<string> {
+  try {
+    // 1) Hover over Main Item 2
+    const mainItem2 = page.locator("a:has-text('Main Item 2')");
+    await mainItem2.hover();
+
+    // 2) Hover over "SUB SUB LIST »" under Main Item 2
+    // (scope under the li that contains Main Item 2)
+    const subSubList = page.locator(
+      "//a[normalize-space()='Main Item 2']/parent::li//a[contains(normalize-space(.),'SUB SUB LIST')]"
+    );
+    await subSubList.waitFor({ state: "visible", timeout: 5000 });
+    await subSubList.hover();
+
+    // 3) Hover over Sub Sub Item 2 (2nd item under SUB SUB LIST)
+    const subSubItem2 = page.locator(
+      "//a[contains(normalize-space(.),'SUB SUB LIST')]/parent::li/ul/li[2]/a"
+    );
+    await subSubItem2.waitFor({ state: "visible", timeout: 5000 });
+    await subSubItem2.hover();
+
+    // 4) Return the text
+    return (await subSubItem2.innerText()).trim();
+  } catch {
+    return "";
+  }
+}
+
+test("TC08 - Verify Hovered Sub Sub Item 2", async ({ page }, testInfo) => {
+  testMetadata04h(testInfo);
+  await page.goto("https://demoqa.com/menu");
+
+  const actualHoveredItem = await getHoveredSubSubItem2(page);
+  const expectedHoveredItem = "Sub Sub Item 2";
+
+  console.log("Actual Hovered Sub Sub Item 2:", `'${actualHoveredItem}'`);
+  console.log("Expected Hovered Sub Sub Item 2:", expectedHoveredItem);
+
+  await expect(
+    actualHoveredItem,
+    "Hovered Sub Sub Item 2 does not match expected!"
+  ).toBe(expectedHoveredItem);
+
+  console.log("Menu for Sub Sub Item 2 verified successfully");
+});
+
+async function getHoveredMainItem3(page: Page): Promise<string> {
+  try {
+    // Locate "Main Item 3"
+    const mainItem3 = page.locator("//a[normalize-space()='Main Item 3']");
+    await mainItem3.hover();
+
+    // Small wait to allow hover UI to appear (if any)
+    await page.waitForTimeout(1000);
+
+    // Try to find any hovered / visible sub item (same as your Selenium XPath)
+    const hoveredItems = page.locator("//ul[contains(@class,'submenu')]//a");
+    const count = await hoveredItems.count();
+
+    if (count === 0) return "";
+
+    return (await hoveredItems.first().innerText()).trim();
+  } catch {
+    return "";
+  }
+}
+
+test("TC09 - Verify Hovered Main Item 3", async ({ page }, testInfo) => {
+  testMetadata04h(testInfo);
+  // Equivalent to dependsOnMethods = verifyPrereqIsWorking
+  await page.goto("https://demoqa.com/menu");
+
+  const hoveredItem = await getHoveredMainItem3(page);
+  const expectedHoveredItem = "Main Item 3";
+
+  console.log("Actual Hovered Main Item 3:", hoveredItem);
+  console.log("Expected Hovered Main Item 3:", expectedHoveredItem);
+
+  // This assertion is INTENTIONALLY expected to FAIL
+  await expect(hoveredItem, "No hovered item detected for Main Item 3").toBe(
+    expectedHoveredItem
+  );
+
+  console.log("Menu for Main Item 3 verified successfully");
+});
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04a(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04a" },
+    { type: "Topic", description: "Accordian" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/accordian" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04b(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04b" },
+    { type: "Topic", description: "Auto Complete" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/auto-complete" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04c(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04c" },
+    { type: "Topic", description: "Date Picker" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/date-picker" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04d(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04d" },
+    { type: "Topic", description: "Slider" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/slider" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04e(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04e" },
+    { type: "Topic", description: "Progress Bar" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/progress-bar" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04f(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04f" },
+    { type: "Topic", description: "Tabs" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/tabs" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04g(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04g" },
+    { type: "Topic", description: "Tool Tips" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/tool-tips" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+export function testMetadata04h(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04g" },
+    { type: "Topic", description: "Tool Tips" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/menu" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --debug",
+    "test:04e": "playwright test tests/ModulePlaywrightFramework04P2e.spec.ts",
+    "test:04f": "playwright test tests/ModulePlaywrightFramework04P2f.spec.ts",
+    "test:04g": "playwright test tests/ModulePlaywrightFramework04P2g.spec.ts",
+    "test:04h": "playwright test tests/ModulePlaywrightFramework04P2h.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+  use: {
+    headless: false,
+    viewport: null,
+    launchOptions: {
+      args: ["--start-maximized"],
+    },
+    // 📸 Extent-like extras
+    screenshot: "only-on-failure",
+    video: "retain-on-failure",
+    trace: "retain-on-failure",
+  },
+});
+
