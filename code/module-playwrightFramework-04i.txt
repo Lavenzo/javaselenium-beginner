@@ -1,0 +1,1402 @@
+// Test File
+import { test, expect, type Page } from "@playwright/test";
+import { testMetadata04i } from "./utils/testMetadata04b";
+
+/** Best-effort ads/overlay cleanup for DemoQA (safe to call any time) */
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+test("TC01 - Prerequisite Website Navigation to Menu Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+
+  expect(page).toBeTruthy();
+  await expect(page).toHaveURL(/\/select-menu/);
+
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Select Menu");
+});
+
+test("TC02 - Verify Drop down value for the Selection Of Group 1, Option 1", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+
+  await expect(page.locator("h1.text-center")).toHaveText("Select Menu");
+
+  // ✅ correct anchor for "Select Value" widget
+  const selectValue = page.locator("#withOptGroup");
+  await expect(selectValue).toBeVisible();
+
+  // open dropdown (react-select control)
+  await selectValue.locator("div[class*='control']").first().click();
+
+  // pick option
+  const option = page
+    .locator("div[id^='react-select-2-option-']")
+    .filter({ hasText: "Group 1, option 1" });
+
+  await expect(option).toBeVisible();
+  await option.click();
+
+  // assert selected
+  await expect(selectValue.locator("div[class*='singleValue']")).toHaveText(
+    "Group 1, option 1"
+  );
+});
+
+test("TC03 - Verify Drop down value for the Selection Of Group 1, Option 2", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+
+  await expect(page.locator("h1.text-center")).toHaveText("Select Menu");
+
+  // ✅ correct anchor for "Select Value" widget
+  const selectValue = page.locator("#withOptGroup");
+  await expect(selectValue).toBeVisible();
+
+  // open dropdown (react-select control)
+  await selectValue.locator("div[class*='control']").first().click();
+
+  // pick option
+  const option = page
+    .locator("div[id^='react-select-2-option-']")
+    .filter({ hasText: "Group 1, option 2" });
+
+  await expect(option).toBeVisible();
+  await option.click();
+
+  // assert selected
+  await expect(selectValue.locator("div[class*='singleValue']")).toHaveText(
+    "Group 1, option 2"
+  );
+});
+
+test("TC04 - Verify Drop down value for the Selection Of Group 2, Option 1", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+
+  await expect(page.locator("h1.text-center")).toHaveText("Select Menu");
+
+  // ✅ correct anchor for "Select Value" widget
+  const selectValue = page.locator("#withOptGroup");
+  await expect(selectValue).toBeVisible();
+
+  // open dropdown (react-select control)
+  await selectValue.locator("div[class*='control']").first().click();
+
+  // pick option
+  const option = page
+    .locator("div[id^='react-select-2-option-']")
+    .filter({ hasText: "Group 2, option 1" });
+
+  await expect(option).toBeVisible();
+  await option.click();
+
+  // assert selected
+  await expect(selectValue.locator("div[class*='singleValue']")).toHaveText(
+    "Group 2, option 1"
+  );
+});
+
+test("TC05 - Verify Drop down value for the Selection Of Group 2, Option 2", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+
+  await expect(page.locator("h1.text-center")).toHaveText("Select Menu");
+
+  // ✅ correct anchor for "Select Value" widget
+  const selectValue = page.locator("#withOptGroup");
+  await expect(selectValue).toBeVisible();
+
+  // open dropdown (react-select control)
+  await selectValue.locator("div[class*='control']").first().click();
+
+  // pick option
+  const option = page
+    .locator("div[id^='react-select-2-option-']")
+    .filter({ hasText: "Group 2, option 2" });
+
+  await expect(option).toBeVisible();
+  await option.click();
+
+  // assert selected
+  await expect(selectValue.locator("div[class*='singleValue']")).toHaveText(
+    "Group 2, option 2"
+  );
+});
+
+test("TC06 - Verify Drop down value for the Selection Of A root option", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+
+  await expect(page.locator("h1.text-center")).toHaveText("Select Menu");
+
+  // ✅ correct anchor for "Select Value" widget
+  const selectValue = page.locator("#withOptGroup");
+  await expect(selectValue).toBeVisible();
+
+  // open dropdown (react-select control)
+  await selectValue.locator("div[class*='control']").first().click();
+
+  // pick option
+  const option = page
+    .locator("div[id^='react-select-2-option-']")
+    .filter({ hasText: "A root option" });
+
+  await expect(option).toBeVisible();
+  await option.click();
+
+  // assert selected
+  await expect(selectValue.locator("div[class*='singleValue']")).toHaveText(
+    "A root option"
+  );
+});
+
+test("TC07 - Verify Drop down value for the Selection Of Another root option", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i;
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+
+  await expect(page.locator("h1.text-center")).toHaveText("Select Menu");
+
+  // ✅ correct anchor for "Select Value" widget
+  const selectValue = page.locator("#withOptGroup");
+  await expect(selectValue).toBeVisible();
+
+  // open dropdown (react-select control)
+  await selectValue.locator("div[class*='control']").first().click();
+
+  // pick option
+  const option = page
+    .locator("div[id^='react-select-2-option-']")
+    .filter({ hasText: "Another root option" });
+
+  await expect(option).toBeVisible();
+  await option.click();
+
+  // assert selected
+  await expect(selectValue.locator("div[class*='singleValue']")).toHaveText(
+    "Another root option"
+  );
+});
+
+
+import { test, expect, type Page, Locator } from "@playwright/test";
+import { testMetadata04i } from "./utils/testMetadata04b";
+
+/** Best-effort ads/overlay cleanup for DemoQA (safe to call any time) */
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+async function getSelectOneDropdown(
+  page: Page,
+  title: string
+): Promise<string> {
+  const selectOne = page.locator("#selectOne");
+  await expect(selectOne).toBeVisible();
+  await selectOne.scrollIntoViewIfNeeded();
+
+  // click the actual control area
+  const control = selectOne.locator("div[class*='control']").first();
+  await control.click({ force: true });
+
+  const input = selectOne.locator("input").first();
+  await expect(input).toBeVisible({ timeout: 10000 });
+
+  // force focus into the input (ads can intercept normal click)
+  // force focus into the input (ads can intercept normal click)
+  await input.click({ force: true });
+
+  // clear + type + ENTER on the input itself (not page.keyboard)
+  await input.fill(title);
+  await input.press("Enter");
+
+  const selectedValue = selectOne.locator("div[class*='singleValue']").first();
+  await expect(selectedValue).toHaveText(title, { timeout: 10000 });
+  return (await selectedValue.innerText()).trim();
+}
+
+test("TC08 - Verify Drop down value for Select One = Dr.", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // If you have it, keep calling this because DemoQA ads can block clicks:
+  // await dismissDemoQAAds(page);
+
+  const actualItem = await getSelectOneDropdown(page, "Dr.");
+  expect(actualItem).toBe("Dr.");
+});
+
+test("TC09 - Verify Drop down value for Select One = Mr.", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // If you have it, keep calling this because DemoQA ads can block clicks:
+  // await dismissDemoQAAds(page);
+
+  const actualItem = await getSelectOneDropdown(page, "Mr.");
+  expect(actualItem).toBe("Mr.");
+});
+
+test("TC10 - Verify Drop down value for Select One = Mrs.", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // If you have it, keep calling this because DemoQA ads can block clicks:
+  // await dismissDemoQAAds(page);
+
+  const actualItem = await getSelectOneDropdown(page, "Mrs.");
+  expect(actualItem).toBe("Mrs.");
+});
+
+test("TC11 - Verify Drop down value for Select One = Ms.", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // If you have it, keep calling this because DemoQA ads can block clicks:
+  // await dismissDemoQAAds(page);
+
+  const actualItem = await getSelectOneDropdown(page, "Ms.");
+  expect(actualItem).toBe("Ms.");
+});
+
+test("TC12 - Verify Drop down value for Select One = Prof.", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // If you have it, keep calling this because DemoQA ads can block clicks:
+  // await dismissDemoQAAds(page);
+
+  const actualItem = await getSelectOneDropdown(page, "Prof.");
+  expect(actualItem).toBe("Prof.");
+});
+
+test("TC13 - Verify Drop down value for Select One = Other", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // If you have it, keep calling this because DemoQA ads can block clicks:
+  // await dismissDemoQAAds(page);
+
+  const actualItem = await getSelectOneDropdown(page, "Other");
+  expect(actualItem).toBe("Other");
+});
+
+import { test, expect, type Page, Locator } from "@playwright/test";
+import { testMetadata04i } from "./utils/testMetadata04b";
+
+/** Best-effort ads/overlay cleanup for DemoQA (safe to call any time) */
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+async function selectOldSelectMenu(
+  page: Page,
+  colour: string
+): Promise<string> {
+  const dropdown = page.locator("#oldSelectMenu");
+  await expect(dropdown).toBeVisible();
+
+  // Select by visible text
+  await dropdown.selectOption({ label: colour });
+
+  // ✅ Read visible text (Selenium equivalent)
+  const selectedText = await dropdown.locator("option:checked").textContent();
+
+  return selectedText?.trim() ?? "";
+}
+
+test("TC14 - Verify Drop down value for Old Style Select Menu = Red", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Red");
+
+  // 2. Expected value
+  const expectedItem = "Red";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC15 - Verify Drop down value for Old Style Select Menu = Blue", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Blue");
+
+  // 2. Expected value
+  const expectedItem = "Blue";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC16 - Verify Drop down value for Old Style Select Menu = Green", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Green");
+
+  // 2. Expected value
+  const expectedItem = "Green";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC17 - Verify Drop down value for Old Style Select Menu = Yellow", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Yellow");
+
+  // 2. Expected value
+  const expectedItem = "Yellow";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC18 - Verify Drop down value for Old Style Select Menu = Purple", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Purple");
+
+  // 2. Expected value
+  const expectedItem = "Purple";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC19 - Verify Drop down value for Old Style Select Menu = Black", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Black");
+
+  // 2. Expected value
+  const expectedItem = "Black";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC20 - Verify Drop down value for Old Style Select Menu = White", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "White");
+
+  // 2. Expected value
+  const expectedItem = "White";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC21 - Verify Drop down value for Old Style Select Menu = Voilet", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Voilet");
+
+  // 2. Expected value
+  const expectedItem = "Voilet";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC22 - Verify Drop down value for Old Style Select Menu = Indigo", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Indigo");
+
+  // 2. Expected value
+  const expectedItem = "Indigo";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC23 - Verify Drop down value for Old Style Select Menu = Magenta", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Magenta");
+
+  // 2. Expected value
+  const expectedItem = "Magenta";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+test("TC24 - Verify Drop down value for Old Style Select Menu = Aqua", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  // Navigate
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 1. Call framework method
+  const actualItem = await selectOldSelectMenu(page, "Aqua");
+
+  // 2. Expected value
+  const expectedItem = "Aqua";
+
+  // 3. Assertion
+  expect(actualItem).toBe(expectedItem);
+
+  // Optional logging (console replaces Extent)
+  console.log("Selection of Old Style Select Menu dropdown value completed");
+  console.log("Actual Selection:", actualItem);
+  console.log("Expected Selection:", expectedItem);
+});
+
+import { test, expect, type Page, Locator } from "@playwright/test";
+import { testMetadata04i } from "./utils/testMetadata04b";
+
+/** Best-effort ads/overlay cleanup for DemoQA (safe to call any time) */
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+// --- Multi-select dropdown helpers (DemoQA)
+function normalizeSpaceRegex(text: string) {
+  return new RegExp(`^\\s*${text.replace(/\s+/g, "\\s+")}\\s*$`, "i");
+}
+
+// ✅ Overload signatures (type-only, not real duplicate implementations)
+export async function multiSelectDropdownSelection(
+  page: Page,
+  valueOne: string
+): Promise<string[]>;
+export async function multiSelectDropdownSelection(
+  page: Page,
+  valueOne: string,
+  valueTwo: string
+): Promise<string[]>;
+export async function multiSelectDropdownSelection(
+  page: Page,
+  valueOne: string,
+  valueTwo: string,
+  valueThree: string
+): Promise<string[]>;
+export async function multiSelectDropdownSelection(
+  page: Page,
+  valueOne: string,
+  valueTwo: string,
+  valueThree: string,
+  valueFour: string
+): Promise<string[]>;
+
+// ✅ Single implementation
+export async function multiSelectDropdownSelection(
+  page: Page,
+  valueOne: string,
+  valueTwo?: string,
+  valueThree?: string,
+  valueFour?: string
+): Promise<string[]> {
+  const colours = ["Green", "Blue", "Black", "Red"];
+
+  const label = page.getByText(normalizeSpaceRegex("Multiselect drop down"));
+  await expect(label).toBeVisible({ timeout: 15000 });
+
+  const row = label.locator("xpath=ancestor::div[contains(@class,'row')][1]");
+  await expect(row).toBeVisible({ timeout: 15000 });
+
+  const control = row.locator("div[class*='control']").first();
+  await expect(control).toBeVisible({ timeout: 15000 });
+  await control.scrollIntoViewIfNeeded();
+  await control.click({ force: true });
+
+  const input = row.locator("input").first();
+  await expect(input).toBeVisible({ timeout: 15000 });
+  await input.click({ force: true });
+
+  // Clear existing selections
+  for (let i = 0; i < 10; i++) {
+    const t = (await control.innerText()).trim();
+    const hasAnyColour = colours.some((c) => t.includes(c));
+    if (!hasAnyColour) break;
+    await input.press("Backspace");
+  }
+
+  const pick = async (val: string) => {
+    await input.fill(val);
+    await input.press("Enter");
+    await expect(control).toContainText(val, { timeout: 15000 });
+  };
+
+  // ✅ Validate no duplicates in provided values
+  const requested = [valueOne, valueTwo, valueThree, valueFour].filter(
+    (v): v is string => typeof v === "string" && v.trim().length > 0
+  );
+
+  const unique = new Set(requested);
+  if (unique.size !== requested.length) {
+    throw new Error(
+      `multiSelectDropdownSelection: duplicate values detected: ${requested.join(
+        ", "
+      )}`
+    );
+  }
+
+  // Select 1–4 values
+  await pick(valueOne);
+  if (valueTwo) await pick(valueTwo);
+  if (valueThree) await pick(valueThree);
+  if (valueFour) await pick(valueFour);
+
+  // Read back selected values from control text
+  const controlText = (await control.innerText()).trim();
+  return colours.filter((c) => controlText.includes(c));
+}
+
+test("TC25 - Verify multi select dropdown with one colour selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+  const colours = ["Green", "Blue", "Black", "Red"];
+  const expectedItem = colours[Math.floor(Math.random() * colours.length)];
+
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const actualItems = await multiSelectDropdownSelection(page, expectedItem);
+
+  expect(actualItems.length).toBe(1);
+  expect(actualItems[0]).toBe(expectedItem);
+
+  console.log("Actual multi select dropdown value:", actualItems);
+  console.log("Expected multi select dropdown value:", expectedItem);
+});
+
+test("TC26 - Verify multi select dropdown with two colours selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+
+  const colours = ["Green", "Blue", "Black", "Red"];
+
+  const firstIndex = Math.floor(Math.random() * colours.length);
+  let secondIndex: number;
+  do {
+    secondIndex = Math.floor(Math.random() * colours.length);
+  } while (secondIndex === firstIndex);
+
+  const expectedFirst = colours[firstIndex];
+  const expectedSecond = colours[secondIndex];
+
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const actualItems = await multiSelectDropdownSelection(
+    page,
+    expectedFirst,
+    expectedSecond
+  );
+
+  expect(actualItems.length).toBe(2);
+  expect(actualItems).toContain(expectedFirst);
+  expect(actualItems).toContain(expectedSecond);
+
+  console.log("Actual multi select dropdown values:", actualItems);
+  console.log(
+    "Expected multi select dropdown values:",
+    expectedFirst,
+    expectedSecond
+  );
+  console.log("Number of chips selected:", actualItems.length);
+});
+
+test("TC27 - Verify multi select dropdown with three colours selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+
+  const colours = ["Green", "Blue", "Black", "Red"];
+
+  // pick 3 distinct random colours
+  const shuffled = [...colours].sort(() => Math.random() - 0.5);
+  const expectedFirst = shuffled[0];
+  const expectedSecond = shuffled[1];
+  const expectedThird = shuffled[2];
+
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const actualItems = await multiSelectDropdownSelection(
+    page,
+    expectedFirst,
+    expectedSecond,
+    expectedThird
+  );
+
+  console.log("Actual multi select dropdown values:", actualItems);
+  console.log("Expected:", expectedFirst, expectedSecond, expectedThird);
+  console.log("Number of chips selected:", actualItems.length);
+
+  expect(actualItems.length).toBe(3);
+  expect(actualItems).toContain(expectedFirst);
+  expect(actualItems).toContain(expectedSecond);
+  expect(actualItems).toContain(expectedThird);
+});
+
+test("TC28 - Verify multi select dropdown with all four colours selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+
+  const colours = ["Green", "Blue", "Black", "Red"];
+
+  // ✅ random order, guaranteed no duplicates
+  const shuffled = [...colours].sort(() => Math.random() - 0.5);
+
+  const expectedFirst = shuffled[0];
+  const expectedSecond = shuffled[1];
+  const expectedThird = shuffled[2];
+  const expectedFourth = shuffled[3];
+
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const actualItems = await multiSelectDropdownSelection(
+    page,
+    expectedFirst,
+    expectedSecond,
+    expectedThird,
+    expectedFourth
+  );
+
+  console.log("Actual:", actualItems);
+  console.log(
+    "Expected (order may differ):",
+    expectedFirst,
+    expectedSecond,
+    expectedThird,
+    expectedFourth
+  );
+  console.log("Count:", actualItems.length);
+
+  // ✅ order-independent assertions
+  expect(actualItems.length).toBe(4);
+  for (const c of colours) {
+    expect(actualItems).toContain(c);
+  }
+});
+
+import { test, expect, type Page, Locator } from "@playwright/test";
+import { testMetadata04i } from "./utils/testMetadata04b";
+
+/** Best-effort ads/overlay cleanup for DemoQA (safe to call any time) */
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+// Overload signatures (type-only)
+export async function standardMultiSelect(
+  page: Page,
+  v1: string
+): Promise<string[]>;
+export async function standardMultiSelect(
+  page: Page,
+  v1: string,
+  v2: string
+): Promise<string[]>;
+export async function standardMultiSelect(
+  page: Page,
+  v1: string,
+  v2: string,
+  v3: string
+): Promise<string[]>;
+export async function standardMultiSelect(
+  page: Page,
+  v1: string,
+  v2: string,
+  v3: string,
+  v4: string
+): Promise<string[]>;
+
+export async function standardMultiSelect(
+  page: Page,
+  ...values: string[]
+): Promise<string[]> {
+  const select = page.locator("#cars");
+
+  // 1) Ensure the element exists first
+  await expect(select).toBeVisible({ timeout: 15000 });
+
+  // 2) Scroll into view (Playwright built-in)
+  await select.scrollIntoViewIfNeeded();
+
+  // 3) Extra: center it in viewport (helps your screenshot/report and avoids ads covering it)
+  await page.evaluate(() => {
+    const el = document.querySelector("#cars");
+    if (el) el.scrollIntoView({ block: "center", inline: "nearest" });
+  });
+
+  // (Optional but useful) small pause so the UI settles for screenshots/videos
+  await page.waitForTimeout(300);
+
+  // 4) Safety check - multiple attribute exists but value may be empty string -> just check it exists
+  await expect(select).toHaveAttribute("multiple");
+
+  // 5) Clear then select requested values by label
+  await select.selectOption([]); // deselect all
+  await select.selectOption(values.map((v) => ({ label: v })));
+
+  // 6) Return selected option labels
+  const selected = await select.evaluate((el) => {
+    const s = el as HTMLSelectElement;
+    return Array.from(s.selectedOptions).map((o) => o.text.trim());
+  });
+
+  return selected;
+}
+
+test("TC29 - Verify standard multi select with one value selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+
+  const cars = ["Volvo", "Saab", "Opel", "Audi"];
+  const expected = cars[Math.floor(Math.random() * cars.length)];
+
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const actualItems = await standardMultiSelect(page, expected);
+
+  console.log("Expected standard multi select value:", expected);
+  console.log("Actual standard multi select value:", actualItems);
+
+  expect(actualItems.length).toBe(1);
+  expect(actualItems[0]).toBe(expected);
+});
+
+test("TC30 - Verify standard multi select with two values selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+
+  // 1) Set an array of 4 elements
+  const cars = ["Volvo", "Saab", "Opel", "Audi"];
+
+  // 2) Randomise and pick two DIFFERENT values
+  const firstIndex = Math.floor(Math.random() * cars.length);
+  let secondIndex: number;
+
+  do {
+    secondIndex = Math.floor(Math.random() * cars.length);
+  } while (secondIndex === firstIndex);
+
+  const expectedFirst = cars[firstIndex];
+  const expectedSecond = cars[secondIndex];
+
+  // 3) Open page
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // 4) Call overloaded helper (2 params)
+  const actualValues = await standardMultiSelect(
+    page,
+    expectedFirst,
+    expectedSecond
+  );
+
+  // 5) Logging
+  console.log(
+    "Expected standard multi select values:",
+    expectedFirst,
+    expectedSecond
+  );
+  console.log("Actual standard multi select values:", actualValues);
+  console.log("Number of selected values:", actualValues.length);
+
+  // 6) Assertions (order independent)
+  expect(actualValues.length).toBe(2);
+  expect(actualValues).toContain(expectedFirst);
+  expect(actualValues).toContain(expectedSecond);
+});
+
+test("TC31 - Verify standard multi select with three values selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+
+  const cars = ["Volvo", "Saab", "Opel", "Audi"];
+
+  // Pick 3 UNIQUE random values
+  const shuffled = [...cars].sort(() => Math.random() - 0.5);
+  const expectedValues = shuffled.slice(0, 3);
+
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const actualValues = await standardMultiSelect(
+    page,
+    expectedValues[0],
+    expectedValues[1],
+    expectedValues[2]
+  );
+
+  // Assertions
+  expect(actualValues.length).toBe(3);
+
+  for (const v of expectedValues) {
+    expect(actualValues).toContain(v);
+  }
+
+  console.log("Expected standard multi select values:", expectedValues);
+  console.log("Actual standard multi select values:", actualValues);
+});
+
+test("TC32 - Verify standard multi select with all four values selected", async ({
+  page,
+}, testInfo) => {
+  testMetadata04i(testInfo);
+
+  const cars = ["Volvo", "Saab", "Opel", "Audi"];
+
+  // Shuffle to randomise order
+  const expectedValues = [...cars].sort(() => Math.random() - 0.5);
+
+  await page.goto("https://demoqa.com/select-menu", {
+    waitUntil: "domcontentloaded",
+  });
+
+  const actualValues = await standardMultiSelect(
+    page,
+    expectedValues[0],
+    expectedValues[1],
+    expectedValues[2],
+    expectedValues[3]
+  );
+
+  // Assertions
+  expect(actualValues.length).toBe(4);
+
+  for (const v of expectedValues) {
+    expect(actualValues).toContain(v);
+  }
+
+  console.log("Expected standard multi select values:", expectedValues);
+  console.log("Actual standard multi select values:", actualValues);
+});
+
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata04i(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "04i" },
+    { type: "Topic", description: "Tool Tips" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/select-menu" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" }
+  );
+}
+
+
+
+
+// Package json
+{
+  "name": "typescriptplaywright01",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\"",
+    "test:headed:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --headed",
+    "test:debug:04": "playwright test \"tests/ModulePlaywrightFramework04P.*\\.spec\\.ts\" --debug",
+    "test:04i": "playwright test tests/ModulePlaywrightFramework04P2i.spec.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^25.0.0",
+    "typescript": "^5.9.3"
+  },
+  "dependencies": {
+    "playwright": "^1.57.0"
+  }
+}
+
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+
+  projects: [
+    {
+      name: "default-on-failure",
+      use: {
+        headless: false,
+        viewport: null,
+        launchOptions: {
+          args: ["--start-maximized"],
+        },
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+        trace: "retain-on-failure",
+      },
+    },
+
+    {
+      name: "always-capture",
+      use: {
+        headless: false,
+        viewport: null,
+        launchOptions: {
+          args: ["--start-maximized"],
+        },
+        screenshot: "on", // ✅ always
+        video: "on",
+        trace: "on",
+      },
+    },
+  ],
+});
