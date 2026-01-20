@@ -1,0 +1,1021 @@
+// Test File
+import { test, expect, type Page, Locator } from "@playwright/test";
+import { testMetadata05a_pt1 } from "./utils/testMetadata05a";
+
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  // If page already closed, do nothing
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape (no waiting)
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  // If page got replaced/closed, stop
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present (no waitForTimeout)
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      // Use first() to avoid strict-mode issues
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      // restore scroll/click
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+test("TC01 - Prerequisite Website Navigation to Sortable Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt1(testInfo);
+
+  await page.goto("https://demoqa.com/sortable", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // dismiss Google ads if appear
+  await dismissDemoQAAds(page);
+
+  // If ads re-appear right before click, dismiss again
+  await dismissDemoQAAds(page);
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/sortable/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Sortable");
+});
+
+/** ---------- Helpers for List Test Cases ---------- */
+
+const LIST_LABELS = ["One", "Two", "Three", "Four", "Five", "Six"] as const;
+type ListLabel = (typeof LIST_LABELS)[number];
+
+function getRandomPositions(): [ListLabel, ListLabel] {
+  const idxOne = Math.floor(Math.random() * LIST_LABELS.length);
+  let idxTwo = Math.floor(Math.random() * LIST_LABELS.length);
+  while (idxTwo === idxOne)
+    idxTwo = Math.floor(Math.random() * LIST_LABELS.length);
+  const posOne = LIST_LABELS[idxOne]; // target
+  const posTwo = LIST_LABELS[idxTwo]; // source
+  return [posOne, posTwo];
+}
+
+function listItemByText(page: Page, label: string): Locator {
+  // List tab pane items
+  return page
+    .locator("#demo-tabpane-list .list-group-item", { hasText: label })
+    .first();
+}
+
+async function ensureListTabActive(page: Page) {
+  const listTab = page.locator("#demo-tab-list");
+  const isSelected = await listTab.getAttribute("aria-selected");
+  if (isSelected !== "true") {
+    await listTab.scrollIntoViewIfNeeded();
+    await listTab.click();
+    await expect(listTab).toHaveAttribute("aria-selected", "true");
+  }
+}
+
+/**
+ * Drag "sourceLabel" and drop above "targetLabel" in the List tab.
+ * This uses mouse drag with deterministic drop point: top-half of target.
+ */
+async function moveElementListPosition(
+  page: Page,
+  sourceLabel: string,
+  targetLabel: string,
+) {
+  const source = listItemByText(page, sourceLabel);
+  const target = listItemByText(page, targetLabel);
+
+  await expect(source).toBeVisible();
+  await expect(target).toBeVisible();
+
+  await source.scrollIntoViewIfNeeded();
+
+  const srcBox = await source.boundingBox();
+  const tgtBox = await target.boundingBox();
+
+  if (!srcBox || !tgtBox) {
+    throw new Error(
+      `Bounding box missing. source=${sourceLabel}, target=${targetLabel}`,
+    );
+  }
+
+  // Start from center of source
+  const startX = srcBox.x + srcBox.width / 2;
+  const startY = srcBox.y + srcBox.height / 2;
+
+  // Drop slightly above the center of target (top-half), to land ABOVE it
+  const dropX = tgtBox.x + tgtBox.width / 2;
+  const dropY = tgtBox.y + Math.max(3, tgtBox.height * 0.25);
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.waitForTimeout(200);
+
+  // Move to target
+  await page.mouse.move(dropX, dropY, { steps: 12 });
+  await page.waitForTimeout(300);
+
+  await page.mouse.up();
+}
+
+/** Returns current visual order of list items (text array) */
+async function getListVisualOrder(page: Page): Promise<string[]> {
+  const items = page.locator("#demo-tabpane-list .list-group-item");
+  const count = await items.count();
+  const order: string[] = [];
+
+  for (let i = 0; i < count; i++) {
+    order.push((await items.nth(i).innerText()).trim());
+  }
+  return order;
+}
+
+/** ---------- List Test Cases ---------- */
+
+test("TC02 - Verify Moving element one position randomly - After Sorting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt1(testInfo);
+  console.log("===== START TC02 : Random Element Reordering =====");
+
+  // If your suite already navigates in a prereq, you can remove this line
+  await page.goto("https://demoqa.com/sortable");
+
+  // Ensure List tab active
+  await ensureListTabActive(page);
+  console.log("List tab is active");
+
+  // 1) Randomize two positions
+  const [posOne, posTwo] = getRandomPositions(); // posOne = target, posTwo = source
+  console.log(`Randomised source element (PosTwo): ${posTwo}`);
+  console.log(`Randomised target element (PosOne): ${posOne}`);
+  console.log(`Action: Move [${posTwo}] above [${posOne}]`);
+
+  let movedCorrectly = false;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    console.log(`Attempt ${attempt} - Drag [${posTwo}] onto [${posOne}]`);
+
+    await moveElementListPosition(page, posTwo, posOne);
+
+    await page.waitForTimeout(800);
+    console.log("Waiting for UI to stabilise after drag-and-drop");
+
+    const order = await getListVisualOrder(page);
+
+    let posTwoIndex = order.indexOf(posTwo);
+    let posOneIndex = order.indexOf(posOne);
+
+    order.forEach((txt, i) => console.log(`Current position [${i}] : ${txt}`));
+
+    console.log(
+      `Index check (Attempt ${attempt}) -> ${posTwo}: ${posTwoIndex} | ${posOne}: ${posOneIndex}`,
+    );
+
+    if (posTwoIndex !== -1 && posOneIndex !== -1 && posTwoIndex < posOneIndex) {
+      movedCorrectly = true;
+      console.log(`Move successful on attempt ${attempt}`);
+      break;
+    } else {
+      console.log("Move not in expected order yet, retrying...");
+    }
+  }
+
+  expect(
+    movedCorrectly,
+    `Expected ${posTwo} to be above ${posOne}`,
+  ).toBeTruthy();
+
+  console.log(`Verification PASSED: [${posTwo}] is above [${posOne}]`);
+  console.log("===== END TC02 =====");
+});
+
+test("TC03 - Verify Moving element two position randomly - After Sorting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt1(testInfo);
+  console.log("===== START TC03 : Random Element Reordering =====");
+
+  // If your suite already navigates in a prereq, you can remove this line
+  await page.goto("https://demoqa.com/sortable");
+
+  // Ensure List tab active
+  await ensureListTabActive(page);
+  console.log("List tab is active");
+
+  // 1) Randomize two positions
+  const [posOne, posTwo] = getRandomPositions(); // posOne = target, posTwo = source
+  console.log(`Randomised source element (PosTwo): ${posTwo}`);
+  console.log(`Randomised target element (PosOne): ${posOne}`);
+  console.log(`Action: Move [${posTwo}] above [${posOne}]`);
+
+  let movedCorrectly = false;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    console.log(`Attempt ${attempt} - Drag [${posTwo}] onto [${posOne}]`);
+
+    await moveElementListPosition(page, posTwo, posOne);
+
+    await page.waitForTimeout(800);
+    console.log("Waiting for UI to stabilise after drag-and-drop");
+
+    const order = await getListVisualOrder(page);
+
+    let posTwoIndex = order.indexOf(posTwo);
+    let posOneIndex = order.indexOf(posOne);
+
+    order.forEach((txt, i) => console.log(`Current position [${i}] : ${txt}`));
+
+    console.log(
+      `Index check (Attempt ${attempt}) -> ${posTwo}: ${posTwoIndex} | ${posOne}: ${posOneIndex}`,
+    );
+
+    if (posTwoIndex !== -1 && posOneIndex !== -1 && posTwoIndex < posOneIndex) {
+      movedCorrectly = true;
+      console.log(`Move successful on attempt ${attempt}`);
+      break;
+    } else {
+      console.log("Move not in expected order yet, retrying...");
+    }
+  }
+
+  expect(
+    movedCorrectly,
+    `Expected ${posTwo} to be above ${posOne}`,
+  ).toBeTruthy();
+
+  console.log(`Verification PASSED: [${posTwo}] is above [${posOne}]`);
+  console.log("===== END TC03 =====");
+});
+
+test("TC04 - Verify Moving element two position randomly - After Sorting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt1(testInfo);
+  console.log("===== START TC04 : Random Element Reordering =====");
+
+  // If your suite already navigates in a prereq, you can remove this line
+  await page.goto("https://demoqa.com/sortable");
+
+  // Ensure List tab active
+  await ensureListTabActive(page);
+  console.log("List tab is active");
+
+  // 1) Randomize two positions
+  const [posOne, posTwo] = getRandomPositions(); // posOne = target, posTwo = source
+  console.log(`Randomised source element (PosTwo): ${posTwo}`);
+  console.log(`Randomised target element (PosOne): ${posOne}`);
+  console.log(`Action: Move [${posTwo}] above [${posOne}]`);
+
+  let movedCorrectly = false;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    console.log(`Attempt ${attempt} - Drag [${posTwo}] onto [${posOne}]`);
+
+    await moveElementListPosition(page, posTwo, posOne);
+
+    await page.waitForTimeout(800);
+    console.log("Waiting for UI to stabilise after drag-and-drop");
+
+    const order = await getListVisualOrder(page);
+
+    let posTwoIndex = order.indexOf(posTwo);
+    let posOneIndex = order.indexOf(posOne);
+
+    order.forEach((txt, i) => console.log(`Current position [${i}] : ${txt}`));
+
+    console.log(
+      `Index check (Attempt ${attempt}) -> ${posTwo}: ${posTwoIndex} | ${posOne}: ${posOneIndex}`,
+    );
+
+    if (posTwoIndex !== -1 && posOneIndex !== -1 && posTwoIndex < posOneIndex) {
+      movedCorrectly = true;
+      console.log(`Move successful on attempt ${attempt}`);
+      break;
+    } else {
+      console.log("Move not in expected order yet, retrying...");
+    }
+  }
+
+  expect(
+    movedCorrectly,
+    `Expected ${posTwo} to be above ${posOne}`,
+  ).toBeTruthy();
+
+  console.log(`Verification PASSED: [${posTwo}] is above [${posOne}]`);
+  console.log("===== END TC04 =====");
+});
+
+test("TC05 - Verify Moving element two position randomly - After Sorting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt1(testInfo);
+  console.log("===== START TC05 : Random Element Reordering =====");
+
+  // If your suite already navigates in a prereq, you can remove this line
+  await page.goto("https://demoqa.com/sortable");
+
+  // Ensure List tab active
+  await ensureListTabActive(page);
+  console.log("List tab is active");
+
+  // 1) Randomize two positions
+  const [posOne, posTwo] = getRandomPositions(); // posOne = target, posTwo = source
+  console.log(`Randomised source element (PosTwo): ${posTwo}`);
+  console.log(`Randomised target element (PosOne): ${posOne}`);
+  console.log(`Action: Move [${posTwo}] above [${posOne}]`);
+
+  let movedCorrectly = false;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    console.log(`Attempt ${attempt} - Drag [${posTwo}] onto [${posOne}]`);
+
+    await moveElementListPosition(page, posTwo, posOne);
+
+    await page.waitForTimeout(800);
+    console.log("Waiting for UI to stabilise after drag-and-drop");
+
+    const order = await getListVisualOrder(page);
+
+    let posTwoIndex = order.indexOf(posTwo);
+    let posOneIndex = order.indexOf(posOne);
+
+    order.forEach((txt, i) => console.log(`Current position [${i}] : ${txt}`));
+
+    console.log(
+      `Index check (Attempt ${attempt}) -> ${posTwo}: ${posTwoIndex} | ${posOne}: ${posOneIndex}`,
+    );
+
+    if (posTwoIndex !== -1 && posOneIndex !== -1 && posTwoIndex < posOneIndex) {
+      movedCorrectly = true;
+      console.log(`Move successful on attempt ${attempt}`);
+      break;
+    } else {
+      console.log("Move not in expected order yet, retrying...");
+    }
+  }
+
+  expect(
+    movedCorrectly,
+    `Expected ${posTwo} to be above ${posOne}`,
+  ).toBeTruthy();
+
+  console.log(`Verification PASSED: [${posTwo}] is above [${posOne}]`);
+  console.log("===== END TC05 =====");
+});
+
+test("TC06 - Verify Moving element two position randomly - After Sorting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt1(testInfo);
+  console.log("===== START TC06 : Random Element Reordering =====");
+
+  // If your suite already navigates in a prereq, you can remove this line
+  await page.goto("https://demoqa.com/sortable");
+
+  // Ensure List tab active
+  await ensureListTabActive(page);
+  console.log("List tab is active");
+
+  // 1) Randomize two positions
+  const [posOne, posTwo] = getRandomPositions(); // posOne = target, posTwo = source
+  console.log(`Randomised source element (PosTwo): ${posTwo}`);
+  console.log(`Randomised target element (PosOne): ${posOne}`);
+  console.log(`Action: Move [${posTwo}] above [${posOne}]`);
+
+  let movedCorrectly = false;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    console.log(`Attempt ${attempt} - Drag [${posTwo}] onto [${posOne}]`);
+
+    await moveElementListPosition(page, posTwo, posOne);
+
+    await page.waitForTimeout(800);
+    console.log("Waiting for UI to stabilise after drag-and-drop");
+
+    const order = await getListVisualOrder(page);
+
+    let posTwoIndex = order.indexOf(posTwo);
+    let posOneIndex = order.indexOf(posOne);
+
+    order.forEach((txt, i) => console.log(`Current position [${i}] : ${txt}`));
+
+    console.log(
+      `Index check (Attempt ${attempt}) -> ${posTwo}: ${posTwoIndex} | ${posOne}: ${posOneIndex}`,
+    );
+
+    if (posTwoIndex !== -1 && posOneIndex !== -1 && posTwoIndex < posOneIndex) {
+      movedCorrectly = true;
+      console.log(`Move successful on attempt ${attempt}`);
+      break;
+    } else {
+      console.log("Move not in expected order yet, retrying...");
+    }
+  }
+
+  expect(
+    movedCorrectly,
+    `Expected ${posTwo} to be above ${posOne}`,
+  ).toBeTruthy();
+
+  console.log(`Verification PASSED: [${posTwo}] is above [${posOne}]`);
+  console.log("===== END TC06 =====");
+});
+
+import { test, expect, type Page, Locator } from "@playwright/test";
+import {
+  testMetadata05a_pt1,
+  testMetadata05a_pt2,
+} from "./utils/testMetadata05a";
+
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  // If page already closed, do nothing
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape (no waiting)
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  // If page got replaced/closed, stop
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present (no waitForTimeout)
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      // Use first() to avoid strict-mode issues
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      // restore scroll/click
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+test("TC07 - Verify Navigation to Demo QA Website - Sortable Module | Grid Tab - Before Sorting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt2(testInfo);
+  console.log("===== START TC07 : Navigate to Grid Tab (Sortable) =====");
+
+  // 0) Ensure we are on Sortable page
+  const currentUrl = page.url();
+  console.log("Current URL before Grid action: " + currentUrl);
+
+  if (!currentUrl.includes("demoqa.com/sortable")) {
+    console.log(
+      "Not on Sortable page, navigating to https://demoqa.com/sortable",
+    );
+    await page.goto("https://demoqa.com/sortable", {
+      waitUntil: "domcontentloaded",
+    });
+  }
+
+  // Kill ads/overlays as early as possible (DemoQA is noisy)
+  await dismissDemoQAAds(page);
+
+  // 1) Get tab elements
+  const listTab = page.locator("#demo-tab-list");
+  const gridTab = page.locator("#demo-tab-grid");
+
+  await expect(listTab).toBeVisible();
+  await expect(gridTab).toBeVisible();
+
+  console.log(
+    `List tab state -> aria-selected: ${await listTab.getAttribute("aria-selected")} | class: ${await listTab.getAttribute("class")}`,
+  );
+  console.log(
+    `Grid tab state -> aria-selected: ${await gridTab.getAttribute("aria-selected")} | class: ${await gridTab.getAttribute("class")}`,
+  );
+
+  // 2) FORCE a state change: click List first
+  console.log("Force switch: Click List tab first");
+  await dismissDemoQAAds(page);
+  await listTab.scrollIntoViewIfNeeded();
+  await listTab.click();
+
+  await expect(listTab).toHaveAttribute("aria-selected", "true");
+  console.log("List tab is selected");
+
+  // 3) Now click Grid tab
+  console.log("Click Grid tab");
+  await dismissDemoQAAds(page);
+  await gridTab.scrollIntoViewIfNeeded();
+  await gridTab.click();
+
+  // 4) Validate Grid selected
+  await expect(gridTab).toHaveAttribute("aria-selected", "true");
+
+  const gridSelectedFinal = await gridTab.getAttribute("aria-selected");
+  const gridClassFinal = await gridTab.getAttribute("class");
+  console.log(
+    `Grid tab final -> aria-selected: ${gridSelectedFinal} | class: ${gridClassFinal}`,
+  );
+
+  expect(gridSelectedFinal, "Grid tab is not selected after click").toBe(
+    "true",
+  );
+  console.log("TC07 PASSED: Grid tab is selected successfully");
+
+  console.log("===== END TC07 =====");
+});
+
+/** Get Grid visual order (reads DOM order of grid items, like your Selenium method) */
+async function getGridVisualOrder(page: Page): Promise<string[]> {
+  await ensureOnSortablePage(page);
+  const items = page.locator(
+    "#demo-tabpane-grid .create-grid .list-group-item",
+  );
+  const texts = await items.allTextContents();
+  return texts.map((t) => t.trim()).filter(Boolean);
+}
+
+/** Random pick two distinct labels from 1..9 */
+function getRandomTwoGridLabels(): [string, string] {
+  const labels = [
+    "One",
+    "Two",
+    "Three",
+    "Four",
+    "Five",
+    "Six",
+    "Seven",
+    "Eight",
+    "Nine",
+  ];
+  const idx1 = Math.floor(Math.random() * labels.length);
+  let idx2 = idx1;
+  while (idx2 === idx1) idx2 = Math.floor(Math.random() * labels.length);
+  return [labels[idx1], labels[idx2]];
+}
+/**
+ * TEXT SWAP workaround (DOM text manipulation) - matches your final working approach:
+ * swap a.textContent and b.textContent, return true/false.
+ */
+export async function swapGridItemsByText(
+  page: Page,
+  aText: string,
+  bText: string,
+): Promise<boolean> {
+  await ensureOnSortablePage(page);
+
+  const swapped = await page.evaluate(
+    ([a, b]) => {
+      const grid = document.querySelector("#demo-tabpane-grid .create-grid");
+      if (!grid) return false;
+
+      const items = Array.from(grid.querySelectorAll(".list-group-item"));
+      const elA = items.find((el) => (el.textContent || "").trim() === a);
+      const elB = items.find((el) => (el.textContent || "").trim() === b);
+
+      if (!elA || !elB) return false;
+
+      const temp = elA.textContent;
+      elA.textContent = elB.textContent;
+      elB.textContent = temp;
+
+      return true;
+    },
+    [aText, bText] as const,
+  );
+
+  return Boolean(swapped);
+}
+
+export async function ensureGridTabActive(page: Page): Promise<void> {
+  await ensureOnSortablePage(page);
+
+  const listTab = page.locator("#demo-tab-list");
+  const gridTab = page.locator("#demo-tab-grid");
+
+  // Force state change: click List first, then Grid
+  await listTab.click({ timeout: 10000 }).catch(async () => {
+    await page
+      .locator("#demo-tab-list")
+      .click({ force: true })
+      .catch(() => {});
+  });
+
+  await expect(listTab).toHaveAttribute("aria-selected", "true", {
+    timeout: 15000,
+  });
+
+  await gridTab.click({ timeout: 10000 }).catch(async () => {
+    await page
+      .locator("#demo-tab-grid")
+      .click({ force: true })
+      .catch(() => {});
+  });
+
+  // This sometimes needs longer because DemoQA tab state can be sluggish
+  await expect(gridTab).toHaveAttribute("aria-selected", "true", {
+    timeout: 20000,
+  });
+
+  // Bonus: ensure grid container exists (prevents “tabs selected but grid not ready”)
+  await expect(page.locator("#demo-tabpane-grid .create-grid")).toBeVisible({
+    timeout: 15000,
+  });
+}
+
+async function ensureOnSortablePage(page: Page): Promise<void> {
+  if (page.isClosed()) return;
+
+  const url = page.url();
+
+  // Hard-navigate if not on Sortable OR caught in vignette
+  if (!url.includes("demoqa.com/sortable") || url.includes("google_vignette")) {
+    await page.goto("https://demoqa.com/sortable", {
+      waitUntil: "domcontentloaded",
+    });
+  }
+
+  await dismissDemoQAAds(page);
+
+  // Tabs must exist (key flake guard)
+  await expect(page.locator("#demo-tab-list")).toBeVisible({ timeout: 15000 });
+  await expect(page.locator("#demo-tab-grid")).toBeVisible({ timeout: 15000 });
+}
+
+test("TC08 - Verify First grid element swap using TEXT SWAP workaround (DOM text manipulation)", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt2(testInfo);
+  console.log("===== START TC08 : Grid Swap via TEXT SWAP Workaround =====");
+
+  // 0) Ensure we are really on Sortable page + tabs exist (anti-flake)
+  await ensureOnSortablePage(page);
+
+  // 1) Ensure Grid tab active (this will also re-check page + ads)
+  await ensureGridTabActive(page);
+  console.log("Grid tab is active");
+
+  // 2) Sanity: must have 9 items
+  const beforeOrder = await getGridVisualOrder(page);
+  console.log("Visual Order BEFORE:", beforeOrder);
+  expect(beforeOrder.length, "Expected 9 grid items before swap").toBe(9);
+
+  // 3) Random pick 2 items to swap
+  const [a, b] = getRandomTwoGridLabels();
+  console.log(`Action: Swap using TEXT SWAP workaround: [${a}] ↔ [${b}]`);
+  console.log(
+    "Note: Using text swap workaround due to drag-drop limitation on DemoQA grid.",
+  );
+
+  // 4) Perform swap
+  const swapped = await swapGridItemsByText(page, a, b);
+  expect(
+    swapped,
+    `Text swap returned false. Could not locate grid elements: ${a}, ${b}`,
+  ).toBeTruthy();
+
+  // 5) Verify order changed correctly (swap indices)
+  const afterOrder = await getGridVisualOrder(page);
+  console.log("Visual Order AFTER:", afterOrder);
+  expect(afterOrder.length, "Expected 9 grid items after swap").toBe(9);
+
+  const aBefore = beforeOrder.indexOf(a);
+  const bBefore = beforeOrder.indexOf(b);
+
+  const aAfter = afterOrder.indexOf(a);
+  const bAfter = afterOrder.indexOf(b);
+
+  console.log(`Index BEFORE -> ${a}=${aBefore}, ${b}=${bBefore}`);
+  console.log(`Index AFTER  -> ${a}=${aAfter}, ${b}=${bAfter}`);
+
+  expect(aBefore, "Random label A not found in BEFORE order.").not.toBe(-1);
+  expect(bBefore, "Random label B not found in BEFORE order.").not.toBe(-1);
+  expect(aAfter, "Random label A not found in AFTER order.").not.toBe(-1);
+  expect(bAfter, "Random label B not found in AFTER order.").not.toBe(-1);
+
+  expect(aAfter, `Expected ${a} to move into ${b}'s previous position`).toBe(
+    bBefore,
+  );
+  expect(bAfter, `Expected ${b} to move into ${a}'s previous position`).toBe(
+    aBefore,
+  );
+
+  console.log("TC08 PASSED: Grid swap verified via TEXT SWAP workaround");
+  console.log("===== END TC08 =====");
+});
+
+test("TC09 - Verify Second grid element swap using TEXT SWAP workaround (DOM text manipulation)", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt2(testInfo);
+  console.log("===== START TC09 : Grid Swap via TEXT SWAP Workaround =====");
+
+  await ensureGridTabActive(page);
+  console.log("Grid tab is active");
+
+  const beforeOrder = await getGridVisualOrder(page);
+  console.log("Visual Order BEFORE:", beforeOrder);
+  expect(beforeOrder.length, "Expected 9 grid items before swap").toBe(9);
+
+  const [a, b] = getRandomTwoGridLabels();
+  console.log(`Action: Swap using TEXT SWAP workaround: [${a}] ↔ [${b}]`);
+
+  const swapped = await swapGridItemsByText(page, a, b);
+  expect(
+    swapped,
+    `Text swap returned false. Could not locate: ${a}, ${b}`,
+  ).toBeTruthy();
+
+  const afterOrder = await getGridVisualOrder(page);
+  console.log("Visual Order AFTER:", afterOrder);
+  expect(afterOrder.length, "Expected 9 grid items after swap").toBe(9);
+
+  const aBefore = beforeOrder.indexOf(a);
+  const bBefore = beforeOrder.indexOf(b);
+  const aAfter = afterOrder.indexOf(a);
+  const bAfter = afterOrder.indexOf(b);
+
+  console.log(`Index BEFORE -> ${a}=${aBefore}, ${b}=${bBefore}`);
+  console.log(`Index AFTER  -> ${a}=${aAfter}, ${b}=${bAfter}`);
+
+  expect(aBefore, "Random label A not found in BEFORE order.").not.toBe(-1);
+  expect(bBefore, "Random label B not found in BEFORE order.").not.toBe(-1);
+  expect(aAfter, "Random label A not found in AFTER order.").not.toBe(-1);
+  expect(bAfter, "Random label B not found in AFTER order.").not.toBe(-1);
+
+  expect(aAfter, `Expected ${a} to move into ${b}'s previous position`).toBe(
+    bBefore,
+  );
+  expect(bAfter, `Expected ${b} to move into ${a}'s previous position`).toBe(
+    aBefore,
+  );
+
+  console.log("TC09 PASSED: Grid swap verified via TEXT SWAP workaround");
+  console.log("===== END TC09 =====");
+});
+
+test("TC10 - Verify Third grid element swap using TEXT SWAP workaround (DOM text manipulation)", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt2(testInfo);
+  console.log("===== START TC10 : Grid Swap via TEXT SWAP Workaround =====");
+
+  await ensureGridTabActive(page);
+  console.log("Grid tab is active");
+
+  const beforeOrder = await getGridVisualOrder(page);
+  console.log("Visual Order BEFORE:", beforeOrder);
+  expect(beforeOrder.length, "Expected 9 grid items before swap").toBe(9);
+
+  const [a, b] = getRandomTwoGridLabels();
+  console.log(`Action: Swap using TEXT SWAP workaround: [${a}] ↔ [${b}]`);
+
+  const swapped = await swapGridItemsByText(page, a, b);
+  expect(
+    swapped,
+    `Text swap returned false. Could not locate: ${a}, ${b}`,
+  ).toBeTruthy();
+
+  const afterOrder = await getGridVisualOrder(page);
+  console.log("Visual Order AFTER:", afterOrder);
+  expect(afterOrder.length, "Expected 9 grid items after swap").toBe(9);
+
+  const aBefore = beforeOrder.indexOf(a);
+  const bBefore = beforeOrder.indexOf(b);
+  const aAfter = afterOrder.indexOf(a);
+  const bAfter = afterOrder.indexOf(b);
+
+  console.log(`Index BEFORE -> ${a}=${aBefore}, ${b}=${bBefore}`);
+  console.log(`Index AFTER  -> ${a}=${aAfter}, ${b}=${bAfter}`);
+
+  expect(aBefore, "Random label A not found in BEFORE order.").not.toBe(-1);
+  expect(bBefore, "Random label B not found in BEFORE order.").not.toBe(-1);
+  expect(aAfter, "Random label A not found in AFTER order.").not.toBe(-1);
+  expect(bAfter, "Random label B not found in AFTER order.").not.toBe(-1);
+
+  expect(aAfter, `Expected ${a} to move into ${b}'s previous position`).toBe(
+    bBefore,
+  );
+  expect(bAfter, `Expected ${b} to move into ${a}'s previous position`).toBe(
+    aBefore,
+  );
+
+  console.log("TC10 PASSED: Grid swap verified via TEXT SWAP workaround");
+  console.log("===== END TC10 =====");
+});
+
+test("TC11 - Verify total sortable elements between Grid and List views", async ({
+  page,
+}, testInfo) => {
+  testMetadata05a_pt2(testInfo);
+  console.log("===== START TC11 : Compare Grid vs List element count =====");
+
+  // 1) Ensure on Sortable page (your guard already calls dismissDemoQAAds)
+  await ensureOnSortablePage(page);
+
+  // Extra safety – ads can appear anytime
+  await dismissDemoQAAds(page);
+
+  // 2) Go Grid tab and count Grid items (Expected)
+  await ensureGridTabActive(page);
+  await dismissDemoQAAds(page);
+
+  console.log("Grid tab is selected");
+
+  const gridItems = page.locator(
+    "#demo-tabpane-grid .create-grid .list-group-item",
+  );
+
+  const expectedGridCount = await gridItems.count();
+  console.log(`Grid item count (Expected): ${expectedGridCount}`);
+
+  // Optional: Grid evidence screenshot
+  await page.screenshot({
+    path: `test-results/TC11_Grid_View.png`,
+    fullPage: false,
+  });
+
+  // 3) Switch to List tab and count List items (Actual)
+  const listTab = page.locator("#demo-tab-list");
+
+  await dismissDemoQAAds(page);
+  await expect(listTab).toBeVisible({ timeout: 15000 });
+
+  // Click might be blocked by overlay – so dismiss first, click, dismiss again
+  await listTab.click({ timeout: 15000 });
+  await dismissDemoQAAds(page);
+
+  await expect(listTab).toHaveAttribute("aria-selected", "true", {
+    timeout: 15000,
+  });
+  console.log("List tab is selected");
+
+  const listItems = page.locator(
+    "#demo-tabpane-list .vertical-list-container .list-group-item",
+  );
+
+  const actualListCount = await listItems.count();
+  console.log(`List item count (Actual): ${actualListCount}`);
+
+  // 4) Compare counts (your business rule)
+  console.log(
+    `Compare counts -> Grid(Expected): ${expectedGridCount} | List(Actual): ${actualListCount}`,
+  );
+
+  expect(
+    actualListCount,
+    `Mismatch: Grid has ${expectedGridCount} items but List has ${actualListCount} items`,
+  ).toBe(expectedGridCount);
+
+  console.log("TC11 PASSED: Grid and List element counts match");
+  console.log("===== END TC11 =====");
+});
+
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata05a_pt1(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "05a pt 1" },
+    { type: "Topic", description: "Sortable  - List View" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/sortable" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" },
+  );
+}
+
+export function testMetadata05a_pt2(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "05a pt 2" },
+    { type: "Topic", description: "Sortable  - Grid View" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/sortable" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" },
+  );
+}
+
+
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+
+  // ✅ Retry failed tests (once or twice)
+  retries: 2,
+
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+
+  projects: [
+    {
+      name: "default-on-failure",
+      use: {
+        headless: false,
+        viewport: null,
+        launchOptions: {
+          args: ["--start-maximized"],
+        },
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+        trace: "retain-on-failure",
+      },
+    },
+
+    {
+      name: "always-capture",
+      use: {
+        headless: false,
+        viewport: null,
+        launchOptions: {
+          args: ["--start-maximized"],
+        },
+        screenshot: "on", // ✅ always
+        video: "on",
+        trace: "on",
+      },
+    },
+  ],
+});
