@@ -1,0 +1,1259 @@
+// Test File
+import { test, expect, type Page, Locator } from "@playwright/test";
+import { testMetadata05b_pt1 } from "./utils/testMetadata05b";
+
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  // If page already closed, do nothing
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape (no waiting)
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  // If page got replaced/closed, stop
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present (no waitForTimeout)
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      // Use first() to avoid strict-mode issues
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      // restore scroll/click
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+test("TC01 - Prerequisite Website Navigation to Selectable Page - List View", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt1(testInfo);
+
+  await page.goto("https://demoqa.com/selectable", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // dismiss Google ads if appear
+  await dismissDemoQAAds(page);
+
+  // If ads re-appear right before click, dismiss again
+  await dismissDemoQAAds(page);
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/selectable/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Selectable");
+});
+
+// ---------- helpers (reusable) ----------
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+const byXpath = (page: Page, xp: string) => page.locator(`xpath=${xp}`);
+
+async function clickTabWithFallback(page: Page, tabId: string, tcId: string) {
+  const tab = page.locator(`#${tabId}`);
+  await expect(tab, `${tcId} - Tab not found: #${tabId}`).toHaveCount(1);
+
+  // normal click first
+  await tab.click().catch(() => {});
+  const ariaAfter = (await tab.getAttribute("aria-selected")) ?? "false";
+  console.log(
+    `${tcId} - ${tabId} aria-selected after normal click: ${ariaAfter}`,
+  );
+
+  // JS click fallback if still not selected
+  if (ariaAfter !== "true") {
+    console.log(`${tcId} - Clicking ${tabId} using JS fallback`);
+    await page.evaluate((id) => {
+      const el = document.getElementById(id) as HTMLElement | null;
+      el?.click();
+    }, tabId);
+  }
+
+  // final wait until selected
+  await expect(
+    tab,
+    `${tcId} - ${tabId} did not become selected`,
+  ).toHaveAttribute("aria-selected", "true");
+}
+
+async function ensureListTabReady(page: Page, tcId: string) {
+  // Navigate (IMPORTANT)
+  await page.goto("https://demoqa.com/selectable", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page, `${tcId} - Not on /selectable`).toHaveURL(/\/selectable/);
+
+  // Ensure List tab is active
+  await clickTabWithFallback(page, "demo-tab-list", tcId);
+
+  // Ensure list panel is actually loaded
+  const container = page.locator("#verticalListContainer");
+  await expect(container, `${tcId} - List container not visible`).toBeVisible();
+  await expect(
+    container.locator("li"),
+    `${tcId} - List items not loaded`,
+  ).toHaveCount(4);
+
+  // Optional: scroll container into view (helps if ads/viewport)
+  await container.scrollIntoViewIfNeeded();
+}
+
+async function clearAllActiveSelections(
+  page: Page,
+  xpaths: string[],
+  tcId: string,
+) {
+  await test.step(`${tcId} - Clear any active selections (baseline reset)`, async () => {
+    for (const xp of xpaths) {
+      const loc = byXpath(page, xp);
+
+      // Existence check (more accurate than visibility during resets)
+      await expect(
+        loc,
+        `${tcId} - Element not found during reset: ${xp}`,
+      ).toHaveCount(1);
+
+      await loc.scrollIntoViewIfNeeded();
+
+      const cls = (await loc.getAttribute("class")) ?? "";
+      const isActive = cls.includes("active");
+      console.log(
+        `${tcId} - Reset check | active=${isActive} | class=${cls} | XPath=${xp}`,
+      );
+
+      if (isActive) {
+        console.log(`${tcId} - Unselecting active item: ${xp}`);
+        await loc.click();
+        await expect(loc).not.toHaveClass(/active/);
+      }
+    }
+  });
+}
+
+async function ensureSelected(page: Page, xp: string, tcId: string) {
+  const loc = byXpath(page, xp);
+
+  await test.step(`${tcId} - Ensure item is selected`, async () => {
+    await expect(loc, `${tcId} - Element not found: ${xp}`).toHaveCount(1);
+    await loc.scrollIntoViewIfNeeded();
+
+    const beforeCls = (await loc.getAttribute("class")) ?? "";
+    console.log(`${tcId} - Class BEFORE click: ${beforeCls} | XPath: ${xp}`);
+
+    // If active already, unselect first (so your test is deterministic)
+    if (beforeCls.includes("active")) {
+      console.log(
+        `${tcId} - Already active, clicking to unselect first: ${xp}`,
+      );
+      await loc.click();
+      await expect(loc).not.toHaveClass(/active/);
+    }
+
+    console.log(`${tcId} - Clicking to select: ${xp}`);
+    await loc.click();
+    await expect(loc, `${tcId} - Expected item to become active`).toHaveClass(
+      /active/,
+    );
+  });
+}
+
+// ---------- test ----------
+test("TC02 - Verify Selecting one Web Element from the list randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt1(testInfo);
+  const TC_ID = "TC02";
+
+  // ✅ MUST do this first, otherwise your <li> elements may not exist yet
+  await ensureListTabReady(page, TC_ID);
+
+  const listXpaths: string[] = [
+    "//li[normalize-space()='Cras justo odio']",
+    "//li[normalize-space()='Dapibus ac facilisis in']",
+    "//li[normalize-space()='Morbi leo risus']",
+    "//li[normalize-space()='Porta ac consectetur ac']",
+  ];
+  console.log(`${TC_ID} - Stored list XPaths. Total: ${listXpaths.length}`);
+
+  // Reset state (so we don’t accidentally have multiple active from earlier tests)
+  await clearAllActiveSelections(page, listXpaths, TC_ID);
+
+  // Pick 1 random item
+  const listSelect1 = pickRandom(listXpaths);
+  console.log(`${TC_ID} - Randomly selected XPath: ${listSelect1}`);
+
+  // Select it
+  await ensureSelected(page, listSelect1, TC_ID);
+
+  // Validate EXACTLY 1 is active
+  let activeCount = 0;
+  for (const xp of listXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 1 active item, but found: ${activeCount}`,
+  ).toBe(1);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly one list element with clean baseline state`,
+  );
+});
+
+// ---------- TC03 ----------
+test("TC03 - Verify Selecting two Web Elements from the list randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt1(testInfo);
+  const TC_ID = "TC03";
+
+  // Pre-req: on Selectable page, List tab ready
+  await ensureListTabReady(page, TC_ID);
+
+  // 1) Store stable XPaths (no 'active' in locator)
+  const listXpaths: string[] = [
+    "//li[normalize-space()='Cras justo odio']",
+    "//li[normalize-space()='Dapibus ac facilisis in']",
+    "//li[normalize-space()='Morbi leo risus']",
+    "//li[normalize-space()='Porta ac consectetur ac']",
+  ];
+  console.log(`${TC_ID} - Stored list XPaths. Total: ${listXpaths.length}`);
+
+  // ✅ Reset selection state first (prevents leftover 3rd selection)
+  await clearAllActiveSelections(page, listXpaths, TC_ID);
+
+  // 2) Randomly pick 2 DISTINCT items
+  const firstSelect = pickRandom(listXpaths);
+
+  const remaining = listXpaths.filter((x) => x !== firstSelect);
+  const secondSelect = pickRandom(remaining);
+
+  console.log(`${TC_ID} - First selected XPath: ${firstSelect}`);
+  console.log(`${TC_ID} - Second selected XPath: ${secondSelect}`);
+
+  // 3) Select both items (state-driven)
+  await ensureSelected(page, firstSelect, TC_ID);
+  await ensureSelected(page, secondSelect, TC_ID);
+
+  // 4) Validate EXACTLY 2 items are active
+  let activeCount = 0;
+
+  for (const xp of listXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 2 active items, but found: ${activeCount}`,
+  ).toBe(2);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly two list elements with clean baseline state`,
+  );
+});
+
+// ---------- TC04 ----------
+test("TC04 - Verify Selecting three Web Elements from the list randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt1(testInfo);
+  const TC_ID = "TC04";
+
+  // Pre-req: on Selectable page, List tab ready
+  await ensureListTabReady(page, TC_ID);
+
+  // 1) Store stable XPaths (no 'active' in locator)
+  const listXpaths: string[] = [
+    "//li[normalize-space()='Cras justo odio']",
+    "//li[normalize-space()='Dapibus ac facilisis in']",
+    "//li[normalize-space()='Morbi leo risus']",
+    "//li[normalize-space()='Porta ac consectetur ac']",
+  ];
+  console.log(`${TC_ID} - Stored list XPaths. Total: ${listXpaths.length}`);
+
+  // ✅ Reset selection state first (prevents 4 being selected)
+  await clearAllActiveSelections(page, listXpaths, TC_ID);
+
+  // 2) Randomly pick 3 DISTINCT items
+  const firstSelect = pickRandom(listXpaths);
+
+  const remainingAfterFirst = listXpaths.filter((x) => x !== firstSelect);
+  const secondSelect = pickRandom(remainingAfterFirst);
+
+  const remainingAfterSecond = remainingAfterFirst.filter(
+    (x) => x !== secondSelect,
+  );
+  const thirdSelect = pickRandom(remainingAfterSecond);
+
+  console.log(`${TC_ID} - First selected XPath: ${firstSelect}`);
+  console.log(`${TC_ID} - Second selected XPath: ${secondSelect}`);
+  console.log(`${TC_ID} - Third selected XPath: ${thirdSelect}`);
+
+  // 3) Select the 3 items (state-driven)
+  await ensureSelected(page, firstSelect, TC_ID);
+  await ensureSelected(page, secondSelect, TC_ID);
+  await ensureSelected(page, thirdSelect, TC_ID);
+
+  // 4) Validate EXACTLY 3 items are active
+  let activeCount = 0;
+
+  for (const xp of listXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 3 active items, but found: ${activeCount}`,
+  ).toBe(3);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly three list elements with clean baseline state`,
+  );
+});
+
+
+import { test, expect, type Page, Locator } from "@playwright/test";
+import { testMetadata05b_pt2 } from "./utils/testMetadata05b";
+
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  // If page already closed, do nothing
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape (no waiting)
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  // If page got replaced/closed, stop
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present (no waitForTimeout)
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      // Use first() to avoid strict-mode issues
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      // restore scroll/click
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+test("TC01 - Prerequisite Website Navigation to Selectable Page - Grid View", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+
+  await page.goto("https://demoqa.com/selectable", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // dismiss Google ads if appear
+  await dismissDemoQAAds(page);
+
+  // If ads re-appear right before click, dismiss again
+  await dismissDemoQAAds(page);
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/selectable/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Selectable");
+
+  // 4️⃣ Click Grid tab + verify text + verify selected
+  const gridTab = page.locator("#demo-tab-grid");
+
+  // Ensure it exists
+  await expect(gridTab).toHaveCount(1);
+
+  // Scroll into view (helps when ads/viewport)
+  await gridTab.scrollIntoViewIfNeeded();
+
+  // Try normal click first
+  await gridTab.click().catch(() => {});
+
+  // If click didn’t activate (DemoQA can be flaky), use JS click fallback
+  const ariaAfter = (await gridTab.getAttribute("aria-selected")) ?? "false";
+  if (ariaAfter !== "true") {
+    await page.evaluate(() => {
+      const el = document.getElementById("demo-tab-grid") as HTMLElement | null;
+      el?.click();
+    });
+  }
+
+  // Get text + assert
+  const gridText = (await gridTab.textContent())?.trim() ?? "";
+  await expect(gridTab).toHaveText("Grid");
+  console.log("TC01 - Grid tab text:", gridText);
+
+  // Verify Grid tab is selected
+  await expect(gridTab).toHaveAttribute("aria-selected", "true");
+
+  // Optional: verify Grid panel is visible
+  await expect(page.locator("#demo-tabpane-grid")).toBeVisible();
+});
+
+// ---------- helpers ----------
+function pickRandom<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+const byXpath = (page: Page, xp: string) => page.locator(`xpath=${xp}`);
+
+async function clickTabWithFallback(page: Page, tabId: string, tcId: string) {
+  const tab = page.locator(`#${tabId}`);
+  await expect(tab, `${tcId} - Tab not found: #${tabId}`).toHaveCount(1);
+
+  await tab.scrollIntoViewIfNeeded();
+
+  // normal click
+  await tab.click().catch(() => {});
+  const ariaAfter = (await tab.getAttribute("aria-selected")) ?? "false";
+  console.log(
+    `${tcId} - ${tabId} aria-selected after normal click: ${ariaAfter}`,
+  );
+
+  // JS click fallback
+  if (ariaAfter !== "true") {
+    console.log(`${tcId} - Clicking ${tabId} using JS fallback`);
+    await page.evaluate((id) => {
+      const el = document.getElementById(id) as HTMLElement | null;
+      el?.click();
+    }, tabId);
+  }
+
+  await expect(
+    tab,
+    `${tcId} - ${tabId} did not become selected`,
+  ).toHaveAttribute("aria-selected", "true");
+}
+
+async function ensureGridTabReady(page: Page, tcId: string) {
+  // If TC01 already navigates, you can remove this goto.
+  await page.goto("https://demoqa.com/selectable", {
+    waitUntil: "domcontentloaded",
+  });
+  await expect(page, `${tcId} - Not on /selectable`).toHaveURL(/\/selectable/);
+
+  // Switch to Grid tab
+  await clickTabWithFallback(page, "demo-tab-grid", tcId);
+
+  // Ensure grid panel is visible and items are loaded
+  const gridPanel = page.locator("#demo-tabpane-grid");
+  await expect(gridPanel, `${tcId} - Grid panel not visible`).toBeVisible();
+  await expect(
+    gridPanel.locator("li"),
+    `${tcId} - Grid items not loaded`,
+  ).toHaveCount(9);
+
+  await gridPanel.scrollIntoViewIfNeeded();
+}
+
+async function clearAllActiveSelectionsGrid(
+  page: Page,
+  xpaths: string[],
+  tcId: string,
+) {
+  await test.step(`${tcId} - Clear any active grid selections (baseline reset)`, async () => {
+    for (const xp of xpaths) {
+      const loc = byXpath(page, xp);
+
+      await expect(
+        loc,
+        `${tcId} - Grid element not found during reset: ${xp}`,
+      ).toHaveCount(1);
+      await loc.scrollIntoViewIfNeeded();
+
+      const cls = (await loc.getAttribute("class")) ?? "";
+      const isActive = cls.includes("active");
+      console.log(
+        `${tcId} - Grid reset check | active=${isActive} | class=${cls} | XPath=${xp}`,
+      );
+
+      if (isActive) {
+        console.log(`${tcId} - Unselecting active grid item: ${xp}`);
+        await loc.click();
+        await expect(loc).not.toHaveClass(/active/);
+      }
+    }
+  });
+}
+
+async function ensureSelectedGrid(page: Page, xp: string, tcId: string) {
+  const loc = byXpath(page, xp);
+
+  await test.step(`${tcId} - Ensure grid item is selected`, async () => {
+    await expect(loc, `${tcId} - Grid element not found: ${xp}`).toHaveCount(1);
+    await loc.scrollIntoViewIfNeeded();
+
+    const beforeCls = (await loc.getAttribute("class")) ?? "";
+    console.log(
+      `${tcId} - Grid class BEFORE click: ${beforeCls} | XPath: ${xp}`,
+    );
+
+    // deterministic: if active already, unselect first
+    if (beforeCls.includes("active")) {
+      console.log(
+        `${tcId} - Grid item already active, clicking to unselect first: ${xp}`,
+      );
+      await loc.click();
+      await expect(loc).not.toHaveClass(/active/);
+    }
+
+    console.log(`${tcId} - Clicking grid item to select: ${xp}`);
+    await loc.click();
+    await expect(
+      loc,
+      `${tcId} - Expected grid item to become active`,
+    ).toHaveClass(/active/);
+  });
+}
+
+// ---------- TC02 ----------
+test("TC02 - Verify Selecting one Web Element from the Grid randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+  const TC_ID = "TC02";
+
+  // Pre-req: Selectable page, Grid tab ready
+  await ensureGridTabReady(page, TC_ID);
+
+  const currentUrl = page.url();
+  console.log(`Navigated URL: ${currentUrl}`);
+
+  // 1) Store an Array of 9 Grid Xpaths (One to Nine)
+  const gridXpaths: string[] = [
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='One']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Two']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Three']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Four']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Five']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Six']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Seven']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Eight']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Nine']",
+  ];
+  console.log(`${TC_ID} - Stored grid XPaths. Total: ${gridXpaths.length}`);
+
+  // 2) Reset state
+  await clearAllActiveSelectionsGrid(page, gridXpaths, TC_ID);
+
+  // 3) Randomise 1 xpath
+  const gridSelect1 = pickRandom(gridXpaths);
+  console.log(`${TC_ID} - Randomly selected Grid XPath: ${gridSelect1}`);
+
+  // 4) Select it
+  await ensureSelectedGrid(page, gridSelect1, TC_ID);
+
+  // 5) Validate EXACTLY 1 item is active
+  let activeCount = 0;
+
+  for (const xp of gridXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE grid items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 1 active grid item, but found: ${activeCount}`,
+  ).toBe(1);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly one grid element with clean baseline state`,
+  );
+});
+
+// ---------- TC03 ----------
+test("TC03 - Verify Selecting two Web Elements from the Grid randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+  const TC_ID = "TC03";
+
+  // Pre-req: Selectable page, Grid tab ready
+  await ensureGridTabReady(page, TC_ID);
+
+  const currentUrl = page.url();
+  console.log(`Navigated URL: ${currentUrl}`);
+
+  // 1) Store an Array of 9 Grid Xpaths (One to Nine)
+  const gridXpaths: string[] = [
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='One']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Two']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Three']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Four']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Five']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Six']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Seven']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Eight']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Nine']",
+  ];
+  console.log(`${TC_ID} - Stored grid XPaths. Total: ${gridXpaths.length}`);
+
+  // 2) Reset state
+  await clearAllActiveSelectionsGrid(page, gridXpaths, TC_ID);
+
+  // 3) Randomly select 2 DISTINCT grid items
+  const gridSelect1 = pickRandom(gridXpaths);
+  const remaining = gridXpaths.filter((x) => x !== gridSelect1);
+  const gridSelect2 = pickRandom(remaining);
+
+  console.log(`${TC_ID} - First randomly selected Grid XPath: ${gridSelect1}`);
+  console.log(`${TC_ID} - Second randomly selected Grid XPath: ${gridSelect2}`);
+
+  // 4) Select the two values
+  await ensureSelectedGrid(page, gridSelect1, TC_ID);
+  await ensureSelectedGrid(page, gridSelect2, TC_ID);
+
+  // 5) Validate EXACTLY 2 items are active in Grid
+  let activeCount = 0;
+
+  for (const xp of gridXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE grid items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 2 active grid items, but found: ${activeCount}`,
+  ).toBe(2);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly two grid elements with clean baseline state`,
+  );
+});
+
+// ---------- TC04 ----------
+test("TC04 - Verify Selecting three Web Elements from the Grid randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+  const TC_ID = "TC04";
+
+  // Pre-req: Selectable page, Grid tab ready
+  // (If TC01 already navigates + clicks Grid, you can remove goto inside ensureGridTabReady)
+  await ensureGridTabReady(page, TC_ID);
+
+  const currentUrl = page.url();
+  console.log(`Navigated URL: ${currentUrl}`);
+
+  // 1) Store an Array of 9 Grid Xpaths (One to Nine)
+  const gridXpaths: string[] = [
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='One']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Two']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Three']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Four']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Five']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Six']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Seven']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Eight']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Nine']",
+  ];
+  console.log(`${TC_ID} - Stored grid XPaths. Total: ${gridXpaths.length}`);
+
+  // 2) Reset state
+  await clearAllActiveSelectionsGrid(page, gridXpaths, TC_ID);
+
+  // 3) Randomly select 3 DISTINCT grid items
+  const gridSelect1 = pickRandom(gridXpaths);
+  const remainingAfterFirst = gridXpaths.filter((x) => x !== gridSelect1);
+
+  const gridSelect2 = pickRandom(remainingAfterFirst);
+  const remainingAfterSecond = remainingAfterFirst.filter(
+    (x) => x !== gridSelect2,
+  );
+
+  const gridSelect3 = pickRandom(remainingAfterSecond);
+
+  console.log(`${TC_ID} - First randomly selected Grid XPath: ${gridSelect1}`);
+  console.log(`${TC_ID} - Second randomly selected Grid XPath: ${gridSelect2}`);
+  console.log(`${TC_ID} - Third randomly selected Grid XPath: ${gridSelect3}`);
+
+  // 4) Select the three values
+  await ensureSelectedGrid(page, gridSelect1, TC_ID);
+  await ensureSelectedGrid(page, gridSelect2, TC_ID);
+  await ensureSelectedGrid(page, gridSelect3, TC_ID);
+
+  // 5) Validate EXACTLY 3 items are active in Grid
+  let activeCount = 0;
+
+  for (const xp of gridXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE grid items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 3 active grid items, but found: ${activeCount}`,
+  ).toBe(3);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly three grid elements with clean baseline state`,
+  );
+});
+
+// ---------- TC05 ----------
+test("TC05 - Verify Selecting four Web Elements from the Grid randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+  const TC_ID = "TC05";
+
+  // Pre-req: Selectable page, Grid tab ready
+  await ensureGridTabReady(page, TC_ID);
+
+  const currentUrl = page.url();
+  console.log(`Navigated URL: ${currentUrl}`);
+
+  // 1) Store an Array of 9 Grid Xpaths (One to Nine)
+  const gridXpaths: string[] = [
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='One']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Two']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Three']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Four']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Five']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Six']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Seven']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Eight']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Nine']",
+  ];
+  console.log(`${TC_ID} - Stored grid XPaths. Total: ${gridXpaths.length}`);
+
+  // 2) Reset state
+  await clearAllActiveSelectionsGrid(page, gridXpaths, TC_ID);
+
+  // 3) Randomly select 4 DISTINCT grid items
+  const gridSelect1 = pickRandom(gridXpaths);
+  const remainingAfter1 = gridXpaths.filter((x) => x !== gridSelect1);
+
+  const gridSelect2 = pickRandom(remainingAfter1);
+  const remainingAfter2 = remainingAfter1.filter((x) => x !== gridSelect2);
+
+  const gridSelect3 = pickRandom(remainingAfter2);
+  const remainingAfter3 = remainingAfter2.filter((x) => x !== gridSelect3);
+
+  const gridSelect4 = pickRandom(remainingAfter3);
+
+  console.log(`${TC_ID} - First randomly selected Grid XPath: ${gridSelect1}`);
+  console.log(`${TC_ID} - Second randomly selected Grid XPath: ${gridSelect2}`);
+  console.log(`${TC_ID} - Third randomly selected Grid XPath: ${gridSelect3}`);
+  console.log(`${TC_ID} - Fourth randomly selected Grid XPath: ${gridSelect4}`);
+
+  // 4) Select the four values
+  await ensureSelectedGrid(page, gridSelect1, TC_ID);
+  await ensureSelectedGrid(page, gridSelect2, TC_ID);
+  await ensureSelectedGrid(page, gridSelect3, TC_ID);
+  await ensureSelectedGrid(page, gridSelect4, TC_ID);
+
+  // 5) Validate EXACTLY 4 items are active in Grid
+  let activeCount = 0;
+
+  for (const xp of gridXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE grid items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 4 active grid items, but found: ${activeCount}`,
+  ).toBe(4);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly four grid elements with clean baseline state`,
+  );
+});
+
+// ---------- TC06 ----------
+test("TC06 - Verify Selecting five Web Elements from the Grid randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+  const TC_ID = "TC06";
+
+  // Pre-req: Selectable page, Grid tab ready
+  await ensureGridTabReady(page, TC_ID);
+
+  const currentUrl = page.url();
+  console.log(`Navigated URL: ${currentUrl}`);
+
+  // 1) Store an Array of 9 Grid Xpaths (One to Nine)
+  const gridXpaths: string[] = [
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='One']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Two']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Three']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Four']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Five']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Six']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Seven']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Eight']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Nine']",
+  ];
+  console.log(`${TC_ID} - Stored grid XPaths. Total: ${gridXpaths.length}`);
+
+  // 2) Reset state
+  await clearAllActiveSelectionsGrid(page, gridXpaths, TC_ID);
+
+  // 3) Randomly select 5 DISTINCT grid items
+  const gridSelect1 = pickRandom(gridXpaths);
+  const remainingAfter1 = gridXpaths.filter((x) => x !== gridSelect1);
+
+  const gridSelect2 = pickRandom(remainingAfter1);
+  const remainingAfter2 = remainingAfter1.filter((x) => x !== gridSelect2);
+
+  const gridSelect3 = pickRandom(remainingAfter2);
+  const remainingAfter3 = remainingAfter2.filter((x) => x !== gridSelect3);
+
+  const gridSelect4 = pickRandom(remainingAfter3);
+  const remainingAfter4 = remainingAfter3.filter((x) => x !== gridSelect4);
+
+  const gridSelect5 = pickRandom(remainingAfter4);
+
+  console.log(`${TC_ID} - First randomly selected Grid XPath: ${gridSelect1}`);
+  console.log(`${TC_ID} - Second randomly selected Grid XPath: ${gridSelect2}`);
+  console.log(`${TC_ID} - Third randomly selected Grid XPath: ${gridSelect3}`);
+  console.log(`${TC_ID} - Fourth randomly selected Grid XPath: ${gridSelect4}`);
+  console.log(`${TC_ID} - Fifth randomly selected Grid XPath: ${gridSelect5}`);
+
+  // 4) Select the five values
+  await ensureSelectedGrid(page, gridSelect1, TC_ID);
+  await ensureSelectedGrid(page, gridSelect2, TC_ID);
+  await ensureSelectedGrid(page, gridSelect3, TC_ID);
+  await ensureSelectedGrid(page, gridSelect4, TC_ID);
+  await ensureSelectedGrid(page, gridSelect5, TC_ID);
+
+  // 5) Validate EXACTLY 5 items are active in Grid
+  let activeCount = 0;
+
+  for (const xp of gridXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE grid items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 5 active grid items, but found: ${activeCount}`,
+  ).toBe(5);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly five grid elements with clean baseline state`,
+  );
+});
+
+// ---------- TC07 ----------
+test("TC07 - Verify Selecting six Web Elements from the Grid randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+  const TC_ID = "TC07";
+
+  // Pre-req: Selectable page, Grid tab ready
+  await ensureGridTabReady(page, TC_ID);
+
+  const currentUrl = page.url();
+  console.log(`Navigated URL: ${currentUrl}`);
+
+  // 1) Store an Array of 9 Grid Xpaths (One to Nine)
+  const gridXpaths: string[] = [
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='One']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Two']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Three']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Four']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Five']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Six']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Seven']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Eight']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Nine']",
+  ];
+
+  console.log(`${TC_ID} - Stored grid XPaths. Total: ${gridXpaths.length}`);
+
+  // 2) Reset state (critical for clean baseline)
+  await clearAllActiveSelectionsGrid(page, gridXpaths, TC_ID);
+
+  // 3) Randomly select 6 DISTINCT grid items
+  let remaining = [...gridXpaths];
+  const selected: string[] = [];
+
+  for (let i = 0; i < 6; i++) {
+    const xp = pickRandom(remaining);
+    selected.push(xp);
+    remaining = remaining.filter((x) => x !== xp);
+    console.log(`${TC_ID} - Selected Grid XPath ${i + 1}: ${xp}`);
+  }
+
+  // 4) Select the six values
+  for (const xp of selected) {
+    await ensureSelectedGrid(page, xp, TC_ID);
+  }
+
+  // 5) Validate EXACTLY 6 items are active in Grid
+  let activeCount = 0;
+
+  for (const xp of gridXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE grid items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 6 active grid items, but found: ${activeCount}`,
+  ).toBe(6);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly six grid elements`,
+  );
+});
+
+// ---------- TC08 ----------
+test("TC08 - Verify Selecting seven Web Elements from the Grid randomly - After Selecting", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+  const TC_ID = "TC08";
+
+  // Pre-req: Selectable page, Grid tab ready
+  await ensureGridTabReady(page, TC_ID);
+
+  const currentUrl = page.url();
+  console.log(`Navigated URL: ${currentUrl}`);
+
+  const gridXpaths: string[] = [
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='One']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Two']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Three']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Four']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Five']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Six']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Seven']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Eight']",
+    "//div[@id='demo-tabpane-grid']//li[normalize-space()='Nine']",
+  ];
+
+  // Reset baseline state
+  await clearAllActiveSelectionsGrid(page, gridXpaths, TC_ID);
+
+  // Randomly select 7 DISTINCT items
+  let remaining = [...gridXpaths];
+  const selected: string[] = [];
+
+  for (let i = 0; i < 7; i++) {
+    const xp = pickRandom(remaining);
+    selected.push(xp);
+    remaining = remaining.filter((x) => x !== xp);
+    console.log(`${TC_ID} - Selected Grid XPath ${i + 1}: ${xp}`);
+  }
+
+  // Select the 7 values
+  for (const xp of selected) {
+    await ensureSelectedGrid(page, xp, TC_ID);
+  }
+
+  // Validate EXACTLY 7 items are active
+  let activeCount = 0;
+
+  for (const xp of gridXpaths) {
+    const loc = byXpath(page, xp);
+    const cls = (await loc.getAttribute("class")) ?? "";
+    const isActive = cls.includes("active");
+    console.log(
+      `${TC_ID} - Active check: ${isActive} | XPath: ${xp} | class: ${cls}`,
+    );
+    if (isActive) activeCount++;
+  }
+
+  console.log(`${TC_ID} - Total ACTIVE grid items: ${activeCount}`);
+  expect(
+    activeCount,
+    `${TC_ID} FAILED - Expected exactly 7 active grid items, but found: ${activeCount}`,
+  ).toBe(7);
+
+  console.log(
+    `${TC_ID} PASSED - Successfully selected exactly seven grid elements`,
+  );
+});
+
+// ----- TC09 -----
+
+test("TC09 - Verify Number of Web Elements between List and Grid Selection", async ({
+  page,
+}, testInfo) => {
+  testMetadata05b_pt2(testInfo);
+  const TC_ID = "TC09";
+
+  // ✅ MUST NAVIGATE
+  await page.goto("https://demoqa.com/selectable", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // ✅ Dismiss ads AFTER navigation
+  await dismissDemoQAAds(page);
+
+  // ✅ Confirm page loaded (prevents blank page)
+  await expect(page.locator("h1.text-center")).toHaveText("Selectable");
+
+  console.log(`${TC_ID} - URL: ${page.url()}`);
+
+  // ---------- GRID VIEW ----------
+  const gridItems = page.locator("#row1 li, #row2 li, #row3 li");
+  const gridCount = await gridItems.count();
+  console.log(`${TC_ID} - Grid count: ${gridCount}`);
+
+  await page.screenshot({
+    path: `test-output/screenshots05b/${TC_ID}_GRID_VIEW.png`,
+  });
+
+  // ---------- CLICK LIST TAB ----------
+  const listTab = page.locator("#demo-tab-list");
+
+  await dismissDemoQAAds(page);
+  await listTab.scrollIntoViewIfNeeded();
+
+  // JS click is still correct here
+  await page.evaluate(() => {
+    document
+      .querySelector("#demo-tab-list")
+      ?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+
+  // Ads can reappear
+  await dismissDemoQAAds(page);
+
+  // ---------- LIST VIEW ----------
+  const listContainer = page.locator("#verticalListContainer");
+  await expect(listContainer).toBeVisible({ timeout: 8000 });
+
+  const listItems = listContainer.locator("li");
+  const listCount = await listItems.count();
+  console.log(`${TC_ID} - List count: ${listCount}`);
+
+  await page.screenshot({
+    path: `test-output/screenshots05b/${TC_ID}_LIST_VIEW.png`,
+  });
+
+  // ---------- ASSERT (EXPECTED TO FAIL) ----------
+  console.log(
+    `${TC_ID} - Comparing counts | Grid=${gridCount} | List=${listCount}`,
+  );
+
+  expect(
+    listCount,
+    `${TC_ID} FAILED (EXPECTED) - Grid=${gridCount}, List=${listCount}`,
+  ).toBe(gridCount);
+});
+
+
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata05b_pt1(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "05b pt 1" },
+    { type: "Topic", description: "Selectable - List View" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/selectable" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" },
+  );
+}
+
+export function testMetadata05b_pt2(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "05b pt 2" },
+    { type: "Topic", description: "Selectable - Grid View" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/selectable" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" },
+  );
+}
+
+
+
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+
+  // ✅ Retry failed tests (once or twice)
+  retries: 2,
+
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+
+  projects: [
+    {
+      name: "default-on-failure",
+      use: {
+        headless: false,
+        viewport: null,
+        launchOptions: {
+          args: ["--start-maximized"],
+        },
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+        trace: "retain-on-failure",
+      },
+    },
+
+    {
+      name: "always-capture",
+      use: {
+        headless: false,
+        viewport: null,
+        launchOptions: {
+          args: ["--start-maximized"],
+        },
+        screenshot: "on", // ✅ always
+        video: "on",
+        trace: "on",
+      },
+    },
+  ],
+});
