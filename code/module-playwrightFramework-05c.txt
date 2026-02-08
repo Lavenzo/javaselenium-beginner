@@ -1,0 +1,667 @@
+// Test File
+import { test, expect, type Page, Locator } from "@playwright/test";
+import { testMetadata05c } from "./utils/testMetadata05c";
+
+async function dismissDemoQAAds(page: Page): Promise<void> {
+  // If page already closed, do nothing
+  if (page.isClosed()) return;
+
+  // 1) If vignette hash appears, try escape (no waiting)
+  try {
+    if (!page.isClosed() && page.url().includes("google_vignette")) {
+      await page.keyboard.press("Escape");
+    }
+  } catch {}
+
+  // If page got replaced/closed, stop
+  if (page.isClosed()) return;
+
+  // 2) Close fixed bottom banner if present (no waitForTimeout)
+  try {
+    const closeBtn = page.locator("#close-fixedban");
+    if (!page.isClosed() && (await closeBtn.count()) > 0) {
+      // Use first() to avoid strict-mode issues
+      await closeBtn
+        .first()
+        .click({ timeout: 1000 })
+        .catch(() => {});
+    }
+  } catch {}
+
+  if (page.isClosed()) return;
+
+  // 3) Hide common overlay containers (best-effort)
+  try {
+    await page.evaluate(() => {
+      const selectors = [
+        "#ad_position_box",
+        'div[id^="google_ads_iframe_"]',
+        'div[id$="__container__"]',
+        'iframe[id^="google_ads_iframe_"]',
+        'iframe[src*="googlesyndication"]',
+      ];
+
+      for (const sel of selectors) {
+        document.querySelectorAll(sel).forEach((el) => {
+          const node = el as HTMLElement;
+          node.style.setProperty("display", "none", "important");
+          node.style.setProperty("visibility", "hidden", "important");
+          node.style.setProperty("pointer-events", "none", "important");
+          node.style.setProperty("opacity", "0", "important");
+        });
+      }
+
+      // restore scroll/click
+      document.body.style.overflow = "auto";
+      document.documentElement.style.overflow = "auto";
+    });
+  } catch {}
+}
+
+// ----- Helper Class Functions -----
+function randomIntInclusive(lower: number, upper: number): number {
+  if (upper <= lower) upper = lower + 1;
+  return Math.floor(Math.random() * (upper - lower + 1)) + lower;
+}
+
+// Equivalent of your Java callRandomMethod()
+function callRandomMethod(): number {
+  const x = randomIntInclusive(1, 100);
+  console.log(`Random method called. Random number = ${x}`);
+  return x;
+}
+// Equivalent of your Java callRandomMethod2(lower, upper)
+function callRandomMethod2(lower: number, upper: number): number {
+  if (upper <= lower) {
+    console.log(
+      `callRandomMethod2: invalid range -> lower=${lower}, upper=${upper}. Adjusting upper to lower+1.`,
+    );
+    upper = lower + 1;
+  }
+  const y = randomIntInclusive(lower, upper);
+  console.log(
+    `Random method #2 called. Range: [${lower} - ${upper}], Value: ${y}`,
+  );
+  return y;
+}
+
+async function getResizableBoxSize(
+  page: Page,
+): Promise<{ width: number; height: number }> {
+  const box = page.locator("#resizableBoxWithRestriction");
+  await expect(box).toBeVisible();
+
+  const bb = await box.boundingBox();
+  if (!bb)
+    throw new Error(
+      "Resizable box boundingBox() returned null (box not visible?)",
+    );
+
+  return { width: Math.round(bb.width), height: Math.round(bb.height) };
+}
+
+async function resizeWindow(
+  page: Page,
+  targetHeight: number,
+  targetWidth: number,
+): Promise<void> {
+  const infoText = page.locator("div.text").first();
+  await expect(infoText).toBeVisible();
+  console.log("Info text:", (await infoText.innerText()).trim());
+
+  const box = page.locator("#resizableBoxWithRestriction");
+  const handle = page.locator(
+    "#resizableBoxWithRestriction span.react-resizable-handle",
+  );
+
+  await expect(box).toBeVisible();
+  await expect(handle).toBeVisible();
+
+  await handle.scrollIntoViewIfNeeded();
+
+  // NEW: scroll down slightly so the handle is not at the bottom edge / cropped
+  await page.mouse.wheel(0, 180);
+
+  const tolerance = 2;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    // NEW: do a small scroll down before each attempt (page may shift after ads dismissal)
+    await page.mouse.wheel(0, 120);
+
+    const before = await getResizableBoxSize(page);
+    const dx = Math.round(targetWidth - before.width);
+    const dy = Math.round(targetHeight - before.height);
+
+    console.log(
+      `resizeWindow attempt ${attempt}: before=${before.width}x${before.height}, dx=${dx}, dy=${dy}`,
+    );
+
+    const hb = await handle.boundingBox();
+    if (!hb) throw new Error("Resize handle boundingBox() returned null");
+
+    const startX = hb.x + hb.width * 0.6;
+    const startY = hb.y + hb.height * 0.6;
+
+    await page.mouse.move(startX, startY);
+    await page.mouse.down();
+    await page.waitForTimeout(80);
+
+    const steps = 6;
+    for (let s = 1; s <= steps; s++) {
+      const x = startX + (dx * s) / steps;
+      const y = startY + (dy * s) / steps;
+      await page.mouse.move(x, y);
+    }
+
+    await page.waitForTimeout(80);
+    await page.mouse.up();
+    await page.waitForTimeout(120);
+
+    const after1 = await getResizableBoxSize(page);
+    console.log(
+      `resizeWindow attempt ${attempt}: after=${after1.width}x${after1.height}`,
+    );
+
+    const changed =
+      after1.width !== before.width || after1.height !== before.height;
+
+    const closeEnough =
+      Math.abs(after1.width - targetWidth) <= tolerance &&
+      Math.abs(after1.height - targetHeight) <= tolerance;
+
+    if (changed && closeEnough) return;
+
+    if (changed) {
+      const dx2 = Math.round(targetWidth - after1.width);
+      const dy2 = Math.round(targetHeight - after1.height);
+
+      console.log(`resizeWindow correction: dx2=${dx2}, dy2=${dy2}`);
+
+      // NEW: small scroll before correction too
+      await page.mouse.wheel(0, 80);
+
+      const hb2 = await handle.boundingBox();
+      if (!hb2)
+        throw new Error(
+          "Resize handle boundingBox() returned null (correction)",
+        );
+
+      const s2x = hb2.x + hb2.width * 0.6;
+      const s2y = hb2.y + hb2.height * 0.6;
+
+      await page.mouse.move(s2x, s2y);
+      await page.mouse.down();
+      await page.waitForTimeout(80);
+
+      const steps2 = 4;
+      for (let s = 1; s <= steps2; s++) {
+        const x = s2x + (dx2 * s) / steps2;
+        const y = s2y + (dy2 * s) / steps2;
+        await page.mouse.move(x, y);
+      }
+
+      await page.waitForTimeout(80);
+      await page.mouse.up();
+      await page.waitForTimeout(120);
+
+      const after2 = await getResizableBoxSize(page);
+      console.log(
+        `resizeWindow after correction: ${after2.width}x${after2.height}`,
+      );
+
+      const closeEnough2 =
+        Math.abs(after2.width - targetWidth) <= tolerance &&
+        Math.abs(after2.height - targetHeight) <= tolerance;
+
+      if (closeEnough2) return;
+    }
+
+    console.log(
+      `resizeWindow attempt ${attempt}: no effective resize, retrying after dismissDemoQAAds`,
+    );
+    await dismissDemoQAAds(page);
+    await dismissDemoQAAds(page);
+  }
+
+  const finalSize = await getResizableBoxSize(page);
+  throw new Error(
+    `resizeWindow failed after retries. Final size=${finalSize.width}x${finalSize.height}, target=${targetWidth}x${targetHeight}`,
+  );
+}
+
+// ----- Playwright Testcases -----
+test("TC01 - Prerequisite Website Navigation to Resizable Page", async ({
+  page,
+}, testInfo) => {
+  testMetadata05c(testInfo);
+
+  await page.goto("https://demoqa.com/resizable", {
+    waitUntil: "domcontentloaded",
+  });
+
+  // dismiss Google ads if appear
+  await dismissDemoQAAds(page);
+
+  // If ads re-appear right before click, dismiss again
+  await dismissDemoQAAds(page);
+
+  // 1️⃣ Page exists
+  expect(page).toBeTruthy();
+
+  // 2️⃣ Correct page loaded (auto-waits)
+  await expect(page).toHaveURL(/\/resizable/);
+
+  // 3️⃣ Critical element exists (more stable)
+  const heading = page.locator("h1.text-center");
+  await expect(heading).toHaveText("Resizable");
+});
+
+test("TC02 - Verify Resizable Window below 200 x 200", async ({
+  page,
+}, testInfo) => {
+  testMetadata05c(testInfo);
+
+  // Since each Playwright test gets a fresh page by default,
+  // we navigate again (this is the clean equivalent of dependsOnMethods)
+  await page.goto("https://demoqa.com/resizable", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+  await dismissDemoQAAds(page);
+
+  console.log("TC02 started - Verify Resizable Window below 200x200");
+
+  // 1) Call random method
+  console.log("Calling random prerequisite method");
+  callRandomMethod();
+
+  // 2) Generate random target dimensions (150..199)
+  const minW = 150,
+    maxW = 199;
+  const minH = 150,
+    maxH = 199;
+
+  const targetWidth = callRandomMethod2(minW, maxW);
+  const targetHeight = callRandomMethod2(minH, maxH);
+
+  console.log(
+    `Generated target size -> Width: ${targetWidth}, Height: ${targetHeight}`,
+  );
+
+  // Before
+  const before = await getResizableBoxSize(page);
+  console.log(
+    `Before resize -> Width: ${before.width}, Height: ${before.height}`,
+  );
+
+  // 3) Resize
+  console.log(
+    `Resizing window to target size -> ${targetWidth} x ${targetHeight}`,
+  );
+  await resizeWindow(page, targetHeight, targetWidth);
+
+  // After
+  const after = await getResizableBoxSize(page);
+  console.log(`After resize -> Width: ${after.width}, Height: ${after.height}`);
+
+  // Explain snapping
+  if (after.width === 150 || after.height === 150) {
+    console.log(
+      "NOTE: Resizable box snapped to minimum constraint (150x150). This is expected behavior when drag hits UI limits.",
+    );
+  }
+
+  // 4) Assertions (tolerance)
+  const tolerance = 2;
+  console.log(`Validating resized dimensions with tolerance: ±${tolerance}px`);
+
+  expect(Math.abs(after.width - targetWidth)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(after.height - targetHeight)).toBeLessThanOrEqual(tolerance);
+
+  expect(after.width).toBeLessThan(200);
+  expect(after.height).toBeLessThan(200);
+
+  console.log("TC02 completed successfully");
+});
+
+test("TC03 - Verify Resizable Window reset from minimum to 200 x 200", async ({
+  page,
+}, testInfo) => {
+  testMetadata05c(testInfo);
+
+  console.log(
+    "TC03 started - Verify Resizable Window reset from 150x150 to 200x200",
+  );
+
+  // Navigate (tests are independent in Playwright)
+  await page.goto("https://demoqa.com/resizable", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+  await dismissDemoQAAds(page);
+
+  // Step 1: Resize DOWN to minimum constraint (150 x 150)
+  const minWidth = 150;
+  const minHeight = 150;
+
+  console.log(`Resizing window down to minimum -> ${minWidth} x ${minHeight}`);
+  await resizeWindow(page, minHeight, minWidth);
+
+  const afterMin = await getResizableBoxSize(page);
+  console.log(
+    `After resize to min -> Width: ${afterMin.width}, Height: ${afterMin.height}`,
+  );
+
+  const tolerance = 2;
+
+  expect(Math.abs(afterMin.width - minWidth)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(afterMin.height - minHeight)).toBeLessThanOrEqual(tolerance);
+
+  // Step 2: Resize BACK to default size (200 x 200)
+  const defaultWidth = 200;
+  const defaultHeight = 200;
+
+  console.log(
+    `Resizing window back to default -> ${defaultWidth} x ${defaultHeight}`,
+  );
+  await resizeWindow(page, defaultHeight, defaultWidth);
+
+  const afterReset = await getResizableBoxSize(page);
+  console.log(
+    `After reset -> Width: ${afterReset.width}, Height: ${afterReset.height}`,
+  );
+
+  expect(Math.abs(afterReset.width - defaultWidth)).toBeLessThanOrEqual(
+    tolerance,
+  );
+  expect(Math.abs(afterReset.height - defaultHeight)).toBeLessThanOrEqual(
+    tolerance,
+  );
+
+  console.log("TC03 completed successfully - Resizable window reset verified");
+});
+
+test("TC04 - Verify Resizable Window up to 75% max width", async ({
+  page,
+}, testInfo) => {
+  testMetadata05c(testInfo);
+
+  console.log(
+    "TC04 started - Verify Resizable Window up to 75% max constraints",
+  );
+
+  // Navigate (Playwright tests are independent)
+  await page.goto("https://demoqa.com/resizable", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+  await dismissDemoQAAds(page);
+
+  // Max constraints (from widget spec)
+  const maxWidth = 500;
+  const maxHeight = 300;
+
+  // 75% of max constraints
+  const maxWidth75 = Math.floor(maxWidth * 0.75); // 375
+  const maxHeight75 = Math.floor(maxHeight * 0.75); // 225
+
+  console.log(`Constraints -> MaxWidth: ${maxWidth}, MaxHeight: ${maxHeight}`);
+  console.log(
+    `75% Limits -> MaxWidth75: ${maxWidth75}, MaxHeight75: ${maxHeight75}`,
+  );
+
+  // Target must be >200 and <= 75% max
+  // Width range: 201..375
+  // Height range: 201..225
+  const targetWidth = callRandomMethod2(201, maxWidth75);
+  const targetHeight = callRandomMethod2(201, maxHeight75);
+
+  console.log(
+    `Generated target size -> Width: ${targetWidth}, Height: ${targetHeight}`,
+  );
+
+  // Call ONLY parameterised random method (as per TC04 requirement)
+  console.log("Calling random prerequisite method #2 (parameterised)");
+  const rnd2 = callRandomMethod2(201, 301);
+  console.log(`Random method #2 output captured in TC04: ${rnd2}`);
+
+  // Capture BEFORE
+  const before = await getResizableBoxSize(page);
+  console.log(
+    `Before resize -> Width: ${before.width}, Height: ${before.height}`,
+  );
+
+  // Resize
+  console.log(
+    `Resizing window to target size -> ${targetWidth} x ${targetHeight}`,
+  );
+  await resizeWindow(page, targetHeight, targetWidth);
+
+  // Capture AFTER
+  const after = await getResizableBoxSize(page);
+  console.log(`After resize -> Width: ${after.width}, Height: ${after.height}`);
+
+  // Assertions
+  const tolerance = 2;
+  console.log(`Validating resized dimensions with tolerance: ±${tolerance}px`);
+
+  // Validate target reached (within tolerance)
+  expect(Math.abs(after.width - targetWidth)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(after.height - targetHeight)).toBeLessThanOrEqual(tolerance);
+
+  // Validate constraints: >200 and <= 75% max
+  expect(after.width).toBeGreaterThan(200);
+  expect(after.width).toBeLessThanOrEqual(maxWidth75);
+
+  expect(after.height).toBeGreaterThan(200);
+  expect(after.height).toBeLessThanOrEqual(maxHeight75);
+
+  console.log(
+    "TC04 completed successfully - Resized within 75% max constraints",
+  );
+});
+
+test("TC05 - Verify Resizable Window up to 100% max width", async ({
+  page,
+}, testInfo) => {
+  testMetadata05c(testInfo);
+
+  console.log(
+    "TC05 started - Verify Resizable Window >=75% and <100% max constraints",
+  );
+
+  // Navigate (Playwright tests are independent)
+  await page.goto("https://demoqa.com/resizable", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+  await dismissDemoQAAds(page);
+
+  // Max constraints (from widget spec)
+  const maxWidth = 500;
+  const maxHeight = 300;
+
+  // 75% of max constraints
+  const minWidth75 = Math.floor(maxWidth * 0.75); // 375
+  const minHeight75 = Math.floor(maxHeight * 0.75); // 225
+
+  // < 100% of max constraints
+  const maxWidthExclusive = maxWidth - 1; // 499
+  const maxHeightExclusive = maxHeight - 1; // 299
+
+  console.log(`Constraints -> MaxWidth: ${maxWidth}, MaxHeight: ${maxHeight}`);
+  console.log(
+    `Range required -> Width: [${minWidth75} .. ${maxWidthExclusive}] (>=75% and <100%)`,
+  );
+  console.log(
+    `Range required -> Height: [${minHeight75} .. ${maxHeightExclusive}] (>=75% and <100%)`,
+  );
+
+  // Target must be >=75% and <100%
+  const targetWidth = callRandomMethod2(minWidth75, maxWidthExclusive);
+  const targetHeight = callRandomMethod2(minHeight75, maxHeightExclusive);
+
+  console.log(
+    `Generated target size -> Width: ${targetWidth}, Height: ${targetHeight}`,
+  );
+
+  // Call parameterised random prerequisite method
+  console.log("Calling random prerequisite method #2 (parameterised)");
+  const rnd2 = callRandomMethod2(100, 999);
+  console.log(`Random method #2 output captured in TC05: ${rnd2}`);
+
+  // Capture BEFORE
+  const before = await getResizableBoxSize(page);
+  console.log(
+    `Before resize -> Width: ${before.width}, Height: ${before.height}`,
+  );
+
+  // Resize
+  console.log(
+    `Resizing window to target size -> ${targetWidth} x ${targetHeight}`,
+  );
+  await resizeWindow(page, targetHeight, targetWidth);
+
+  // Capture AFTER
+  const after = await getResizableBoxSize(page);
+  console.log(`After resize -> Width: ${after.width}, Height: ${after.height}`);
+
+  // Assertions
+  const tolerance = 2;
+  console.log(`Validating resized dimensions with tolerance: ±${tolerance}px`);
+
+  // Validate target reached (within tolerance)
+  expect(Math.abs(after.width - targetWidth)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(after.height - targetHeight)).toBeLessThanOrEqual(tolerance);
+
+  // Validate constraints: >=75% and <100% max
+  expect(after.width + tolerance).toBeGreaterThanOrEqual(minWidth75);
+  expect(after.width).toBeLessThanOrEqual(maxWidthExclusive + tolerance);
+
+  expect(after.height + tolerance).toBeGreaterThanOrEqual(minHeight75);
+  expect(after.height).toBeLessThanOrEqual(maxHeightExclusive + tolerance);
+
+  console.log(
+    "TC05 completed successfully - Resized within >=75% and <100% max constraints",
+  );
+});
+
+test("TC06 - Verify Resizable Window at max width and height", async ({
+  page,
+}, testInfo) => {
+  testMetadata05c(testInfo);
+
+  console.log("TC06 started - Verify Resizable Window at MAX width and height");
+
+  const maxWidth = 500;
+  const maxHeight = 300;
+
+  console.log(
+    `Max constraints -> MaxWidth: ${maxWidth}, MaxHeight: ${maxHeight}`,
+  );
+
+  // Navigate (Playwright tests are independent)
+  await page.goto("https://demoqa.com/resizable", {
+    waitUntil: "domcontentloaded",
+  });
+  await dismissDemoQAAds(page);
+  await dismissDemoQAAds(page);
+
+  // Optional: call parameterised random method (consistent with TC04/TC05 style)
+  console.log("Calling random prerequisite method #2 (parameterised)");
+  const rnd2 = callRandomMethod2(1000, 2000);
+  console.log(`Random method #2 output captured in TC06: ${rnd2}`);
+
+  // Capture BEFORE
+  const before = await getResizableBoxSize(page);
+  console.log(
+    `Before resize -> Width: ${before.width}, Height: ${before.height}`,
+  );
+
+  // Resize to max
+  console.log(`Resizing window to MAX size -> ${maxWidth} x ${maxHeight}`);
+  await resizeWindow(page, maxHeight, maxWidth);
+
+  // Capture AFTER
+  const after = await getResizableBoxSize(page);
+  console.log(`After resize -> Width: ${after.width}, Height: ${after.height}`);
+
+  // Assertions
+  const tolerance = 2;
+  console.log(`Validating MAX dimensions with tolerance: ±${tolerance}px`);
+
+  // Validate it reached max (within tolerance)
+  expect(Math.abs(after.width - maxWidth)).toBeLessThanOrEqual(tolerance);
+  expect(Math.abs(after.height - maxHeight)).toBeLessThanOrEqual(tolerance);
+
+  // Validate not exceeding max (allow tolerance)
+  expect(after.width).toBeLessThanOrEqual(maxWidth + tolerance);
+  expect(after.height).toBeLessThanOrEqual(maxHeight + tolerance);
+
+  console.log(
+    "TC06 completed successfully - Resizable window reached MAX constraints",
+  );
+});
+
+
+
+// Utils
+import { TestInfo } from "@playwright/test";
+
+export function testMetadata05c(testInfo: TestInfo) {
+  testInfo.annotations.push(
+    { type: "Track", description: "TypeScript Playwright" },
+    { type: "Module", description: "05c" },
+    { type: "Topic", description: "Interactions - Resizable" },
+    { type: "AUT", description: "DemoQA" },
+    { type: "URL", description: "https://demoqa.com/resizable" },
+    { type: "Framework", description: "Playwright Test (TypeScript)" },
+    { type: "Report", description: "Playwright HTML Report" },
+    { type: "Tester", description: "Kevin Tan" },
+  );
+}
+
+// Config
+import { defineConfig } from "@playwright/test";
+
+export default defineConfig({
+  workers: 1,
+
+  // ✅ Retry failed tests (once or twice)
+  retries: 2,
+
+  reporter: [
+    ["html", { outputFolder: "playwright-report", open: "never" }],
+    ["list"],
+  ],
+
+  projects: [
+    {
+      name: "default-on-failure",
+      use: {
+        headless: false,
+        viewport: null,
+        launchOptions: {
+          args: ["--start-maximized"],
+        },
+        screenshot: "only-on-failure",
+        video: "retain-on-failure",
+        trace: "retain-on-failure",
+      },
+    },
+
+    {
+      name: "always-capture",
+      use: {
+        headless: false,
+        viewport: null,
+        launchOptions: {
+          args: ["--start-maximized"],
+        },
+        screenshot: "on", // ✅ always
+        video: "on",
+        trace: "on",
+      },
+    },
+  ],
+});

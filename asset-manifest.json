@@ -1,7 +1,7 @@
 {
   "files": {
     "main.css": "/javaselenium-beginner/static/css/main.e6c13ad2.css",
-    "main.js": "/javaselenium-beginner/static/js/main.1c8f0d38.js",
+    "main.js": "/javaselenium-beginner/static/js/main.88676410.js",
     "static/media/PlayWrightReport04c_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport04c_Img05.dc48141b44f91ab7d0fa.png",
     "static/media/PlayWrightReport04f_Img04.png": "/javaselenium-beginner/static/media/PlayWrightReport04f_Img04.f154a91869c8a84cf22b.png",
     "static/media/PlayWrightReport04a_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport04a_Img05.9ff777ba013d50615851.png",
@@ -21,6 +21,7 @@
     "static/media/ExtentRepModule03b_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule03b_Img03.3cc582d21fb0a2827680.png",
     "static/media/PlayWrightReport04i_Img12.png": "/javaselenium-beginner/static/media/PlayWrightReport04i_Img12.e7ae619f81907a6b8580.png",
     "static/media/ExtentRepModule04P2d_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2d_Img03.e0b43c22e3cfb91be658.png",
+    "static/media/ExtentRepModule05c_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule05c_Img03.04151aa5cbc1f2bfde14.png",
     "static/media/PlayWrightReport04i_Img08.png": "/javaselenium-beginner/static/media/PlayWrightReport04i_Img08.ab716b7c2323349cd25c.png",
     "static/media/ExtentRepModule04c_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule04c_Img03.2bc6aa72f7a93d8672ca.png",
     "static/media/ExtentRepModule04P2b_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2b_Img03.88cc9177532d08c95609.png",
@@ -41,6 +42,8 @@
     "static/media/ExtentRepModule04b_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule04b_Img03.8eae5d67dce125effcad.png",
     "static/media/ExtentRepModule04P2f_Img04.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2f_Img04.e5d94912c8551c54e85a.png",
     "static/media/PlayWrightReport04i_Img04.png": "/javaselenium-beginner/static/media/PlayWrightReport04i_Img04.f8184895bc26d2d85655.png",
+    "static/media/PlayWrightReport05c_Img04.png": "/javaselenium-beginner/static/media/PlayWrightReport05c_Img04.6c4360a059e35e6c0c0e.png",
+    "static/media/PlayWrightReport05c_Img06.png": "/javaselenium-beginner/static/media/PlayWrightReport05c_Img06.8aa7ae0290e9e4e3bdc4.png",
     "static/media/ExtentRepModule04P2f_Img08.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2f_Img08.1a65d5c449394f7ffbf7.png",
     "static/media/PlayWrightReport04f_Img03.png": "/javaselenium-beginner/static/media/PlayWrightReport04f_Img03.1cd67810d6f5ca9d98f9.png",
     "static/media/PlayWrightReport05a_Img04.png": "/javaselenium-beginner/static/media/PlayWrightReport05a_Img04.ebf9903bbef0945c100c.png",
@@ -71,12 +74,14 @@
     "static/media/ExtentRepModule05b_Img01.png": "/javaselenium-beginner/static/media/ExtentRepModule05b_Img01.44bcbf58abed8db66ac3.png",
     "static/media/ExtentRepModule04P2f_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2f_Img05.80ab3a8c4769e29a61c9.png",
     "static/media/ExtentRepModule04P2f_Img01.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2f_Img01.0151b0c5c75f4eb66e81.png",
+    "static/media/PlayWrightReport05c_Img03.png": "/javaselenium-beginner/static/media/PlayWrightReport05c_Img03.1766e9d2aee8cc837278.png",
     "static/media/PlayWrightReport04i_Img09.png": "/javaselenium-beginner/static/media/PlayWrightReport04i_Img09.ce4ee319d1245778d83a.png",
     "static/media/ExtentRepModule04P2f_Img03.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2f_Img03.f3afb62310ffdad4225c.png",
     "static/media/ExtentRepModule04P2f_Img07.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2f_Img07.df6bb1f84108a2111c94.png",
     "static/media/ExtentRepModule04P2f_Img10.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2f_Img10.6d15c0668a56c6438c3f.png",
     "static/media/ExtentRepModule04P2f_Img09.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2f_Img09.9d07a2b7842085b2c92b.png",
     "static/media/ExtentRepModule05a_Img01.png": "/javaselenium-beginner/static/media/ExtentRepModule05a_Img01.0542e69ecccd4fdeaac5.png",
+    "static/media/ExtentRepModule05c_Img02.png": "/javaselenium-beginner/static/media/ExtentRepModule05c_Img02.445a9c62645b2afdd137.png",
     "static/media/PlayWrightReport04d_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport04d_Img01.5c725e329594bfc9fcbf.png",
     "static/media/PlayWrightReport04c_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport04c_Img01.b529f59aeb54cb0b78eb.png",
     "static/media/PlayWrightReport05a_Img08.png": "/javaselenium-beginner/static/media/PlayWrightReport05a_Img08.1f127e326aa19a459fd6.png",
@@ -88,6 +93,7 @@
     "static/media/PlayWrightReport04c_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport04c_Img02.2ee7aba7d81e900bd318.png",
     "static/media/PlayWrightReport04h_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport04h_Img05.f0b977f666cf3fcc31ca.png",
     "static/media/PlayWrightReport05b_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport05b_Img05.208b29f912184ef881a5.png",
+    "static/media/ExtentRepModule05c_Img04.png": "/javaselenium-beginner/static/media/ExtentRepModule05c_Img04.98e1d1097fe7eb155ab6.png",
     "static/media/PlayWrightReport04g_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport04g_Img02.b5a9cb090c4f241895ef.png",
     "static/media/PlayWrightReport04h_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport04h_Img02.1564c8beee26b54b27a7.png",
     "static/media/PlayWrightReport05a_Img07.png": "/javaselenium-beginner/static/media/PlayWrightReport05a_Img07.5e76993314af208c1494.png",
@@ -108,6 +114,7 @@
     "static/media/PlayWrightReport03c_Img06.png": "/javaselenium-beginner/static/media/PlayWrightReport03c_Img06.15cba9892aa7a3c23612.png",
     "static/media/PlayWrightReport05a_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport05a_Img02.f1d5886c680cc795b395.png",
     "static/media/PlayWrightReport04b_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport04b_Img01.ee71bd861f4a977f96a5.png",
+    "static/media/ExtentRepModule05c_Img01.png": "/javaselenium-beginner/static/media/ExtentRepModule05c_Img01.a6887c06bd33239c285c.png",
     "static/media/PlayWrightReport04i_Img14.png": "/javaselenium-beginner/static/media/PlayWrightReport04i_Img14.e329e1f2d6054909f8f7.png",
     "static/media/ExtentRepModule04P2e_Img02.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2e_Img02.8b4cb080f8d40c74b2f1.png",
     "static/media/PlayWrightReport04i_Img06.png": "/javaselenium-beginner/static/media/PlayWrightReport04i_Img06.5d4fc44b6c67d5302eca.png",
@@ -122,7 +129,10 @@
     "static/media/PlayWrightReport03b_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport03b_Img01.4cb2727a1147a2634f6c.png",
     "static/media/PlayWrightReport04f_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport04f_Img02.3c74fa7d7aed7153e1b7.png",
     "static/media/ExtentRepModule04P2c_Img02.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2c_Img02.2c49ff2a6d6fbceca4c7.png",
+    "static/media/PlayWrightReport05c_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport05c_Img05.2b2658f80a711862f667.png",
+    "static/media/PlayWrightReport05c_Img02.png": "/javaselenium-beginner/static/media/PlayWrightReport05c_Img02.b25709300c343b93b879.png",
     "static/media/PlayWrightReport04i_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport04i_Img05.710b072eee71b16d6aeb.png",
+    "static/media/PlayWrightReport05c_Img01.png": "/javaselenium-beginner/static/media/PlayWrightReport05c_Img01.18e7f253fab31b341968.png",
     "static/media/PlayWrightReport04f_Img06.png": "/javaselenium-beginner/static/media/PlayWrightReport04f_Img06.9dc27e9fe4070a614d46.png",
     "static/media/PlayWrightReport03b_Img03.png": "/javaselenium-beginner/static/media/PlayWrightReport03b_Img03.4646d31655d4b3c97aee.png",
     "static/media/PlayWrightReport03a_Img05.png": "/javaselenium-beginner/static/media/PlayWrightReport03a_Img05.9f40703e4bd667535416.png",
@@ -171,6 +181,7 @@
     "static/media/ExtentRepModule05a_Img11.png": "/javaselenium-beginner/static/media/ExtentRepModule05a_Img11.5cb21c2bb3a768674fd2.png",
     "static/media/ExtentRepModule04P2d_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2d_Img05.6164355cc794d25cf5ae.png",
     "static/media/ExtentRepModule04d_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule04d_Img05.feab1e59c4768ebac042.png",
+    "static/media/ExtentRepModule05c_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule05c_Img05.13b4d8b5f28dd34cc4f2.png",
     "static/media/ExtentRepModule03c_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule03c_Img05.b7e3e6c2528bd0449202.png",
     "static/media/ExtentRepModule04a_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule04a_Img05.c88fc2cdbe62170c00dd.png",
     "static/media/ExtentRepModule05b_Img09.png": "/javaselenium-beginner/static/media/ExtentRepModule05b_Img09.9f45e8d8576dabbf5a27.png",
@@ -191,6 +202,7 @@
     "static/media/ExtentRepModule03c_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule03c_Img06.f634aec82b8561c644d5.png",
     "static/media/ExtentRepModule03b_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule03b_Img06.bef28d262b90f24fa5fe.png",
     "static/media/ExtentRepModule05b_Img10.png": "/javaselenium-beginner/static/media/ExtentRepModule05b_Img10.bc1e726f785e4fefcb41.png",
+    "static/media/ExtentRepModule05c_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule05c_Img06.8f2f79ff73bb96413c24.png",
     "static/media/ExtentRepModule04c_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule04c_Img06.a1eef114acb8b69a67fd.png",
     "static/media/ExtentRepModule04a_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule04a_Img06.ee861fd0c98fb5cda10f.png",
     "static/media/ExtentRepModule04P2c_Img06.png": "/javaselenium-beginner/static/media/ExtentRepModule04P2c_Img06.febacadea62aa5fcecba.png",
@@ -210,10 +222,10 @@
     "static/media/ExtentRepModule03a_Img05.png": "/javaselenium-beginner/static/media/ExtentRepModule03a_Img05.31c31e164c14d309df4a.png",
     "index.html": "/javaselenium-beginner/index.html",
     "main.e6c13ad2.css.map": "/javaselenium-beginner/static/css/main.e6c13ad2.css.map",
-    "main.1c8f0d38.js.map": "/javaselenium-beginner/static/js/main.1c8f0d38.js.map"
+    "main.88676410.js.map": "/javaselenium-beginner/static/js/main.88676410.js.map"
   },
   "entrypoints": [
     "static/css/main.e6c13ad2.css",
-    "static/js/main.1c8f0d38.js"
+    "static/js/main.88676410.js"
   ]
 }
